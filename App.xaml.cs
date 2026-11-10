@@ -17,6 +17,27 @@ public partial class App : Application
         // Comandos de manutenção
         if (e.Args.Contains("--registrar")) { SmartFolder.Register(); Shutdown(); return; }
         if (e.Args.Contains("--remover-registro")) { SmartFolder.Unregister(); Shutdown(); return; }
+        int ui = Array.IndexOf(e.Args, "--listar-icones");   // diagnóstico: ícones da Área de Trabalho (nome e posição)
+        if (ui >= 0 && ui + 1 < e.Args.Length)
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            using var dl = DesktopList.Open();
+            if (dl == null) lines.Add("lista da Área de Trabalho não encontrada");
+            else
+            {
+                int n = dl.Count;
+                var sel = dl.SelectedItems();
+                lines.Add($"ícones: {n}  selecionados: {sel.Count}");
+                for (int i = 0; i < n; i++)
+                {
+                    var r = dl.ItemRect(i);
+                    lines.Add($"[{i}] '{dl.ItemText(i)}' {(r == null ? "?" : $"{r.Value.x},{r.Value.y} {r.Value.w}x{r.Value.h}")}{(sel.Contains(i) ? " (selecionado)" : "")}");
+                }
+            }
+            File.WriteAllLines(e.Args[ui + 1], lines);
+            Shutdown();
+            return;
+        }
         int ci = Array.IndexOf(e.Args, "--criar-aqui");   // botão direito no fundo de uma pasta: Nova pasta inteligente
         if (ci >= 0 && ci + 1 < e.Args.Length && Directory.Exists(e.Args[ci + 1]))
         {

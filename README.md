@@ -16,6 +16,11 @@ expande mostrando os apps para abrir, como nas pastas do iPhone e do macOS. Grá
   programa fechado**. Duplo clique abre o popup.
 - **Menu nativo do Windows nos apps.** Clique direito num app dentro da pasta mostra o menu de verdade do
   Windows (Abrir local do arquivo, Executar como administrador, Propriedades...) com as opções da pasta no final.
+- **Soltar um ícone sobre outro na Área de Trabalho.** Arraste um atalho e solte em cima de outro **ícone
+  da Área de Trabalho do Windows**: o programa pede o nome e cria a pasta inteligente com os dois (aceita
+  vários atalhos selecionados). Um aviso com **Desfazer** aparece por alguns segundos. Fora dos ícones nada muda:
+  o Explorador continua movendo os ícones normalmente. Funciona com o DesktopFolders aberto (ícone na bandeja;
+  ligue *Iniciar com o Windows* para deixar sempre ativo). Só atalhos `.lnk`/`.url` são agrupados.
 - **Adicionar de qualquer lugar.** Clique direito em um ou vários atalhos/programas →
   **Adicionar à pasta inteligente...** escolhe a pasta e o atalho sai da Área de Trabalho
   (volta ao lugar de origem se você remover da pasta).
@@ -59,8 +64,8 @@ execute `Instalar-miniatura.cmd`, na pasta de instalação; para desativar, `Ins
 ## Como usar
 
 1. **Criar:** botão direito na Área de Trabalho → *Mostrar mais opções → Nova pasta inteligente* (pede o nome),
-   ou ícone da bandeja → *Nova pasta inteligente...*, ou **arraste um atalho sobre outro** na camada de ícones
-   (cria a pasta com os dois e pede o nome).
+   ou ícone da bandeja → *Nova pasta inteligente...*, ou **arraste um atalho e solte sobre outro** na Área de
+   Trabalho (cria a pasta com os dois e pede o nome).
 2. **Abrir:** duplo clique.
 3. **Adicionar apps:** arraste atalhos/programas para o popup, use **+ Adicionar programa**, ou clique direito
    no atalho → *Adicionar à pasta inteligente...*.

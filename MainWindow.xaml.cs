@@ -52,6 +52,9 @@ public partial class MainWindow : Window
         Loaded += (_, _) =>
         {
             SetHideNative(_layout.HideNative, save: false);
+            _dragWatcher = new DesktopDragWatcher(this) { Enabled = _layout.DragGroup };
+            _dragWatcher.GroupRequested += OnDesktopGroup;
+            _dragWatcher.Start();
             if (_layout.AutoUpdateCheck && DateTime.UtcNow - _layout.LastUpdateCheck > TimeSpan.FromHours(24))
                 CheckUpdates(manual: false);
             // opção de teste: abre a primeira pasta ao iniciar
@@ -119,6 +122,18 @@ public partial class MainWindow : Window
         menu.Items.Add("Adicionar programa...", null, (_, _) => Dispatcher.Invoke(() => AddProgram_Click(this, new RoutedEventArgs())));
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add(_trayHide);
+        var dragGroup = new System.Windows.Forms.ToolStripMenuItem("Agrupar ao soltar um ícone sobre outro (Área de Trabalho)")
+        {
+            CheckOnClick = true,
+            Checked = _layout.DragGroup
+        };
+        dragGroup.CheckedChanged += (_, _) =>
+        {
+            _layout.DragGroup = dragGroup.Checked;
+            if (_dragWatcher != null) _dragWatcher.Enabled = dragGroup.Checked;
+            Save();
+        };
+        menu.Items.Add(dragGroup);
         var startup = new System.Windows.Forms.ToolStripMenuItem("Iniciar com o Windows")
         {
             CheckOnClick = true,
@@ -273,6 +288,7 @@ public partial class MainWindow : Window
 
     private void Cleanup()
     {
+        _dragWatcher?.Stop();
         Native.SetDesktopIcons(true); // sempre devolve os ícones padrão ao sair
         if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; }
     }
@@ -571,8 +587,70 @@ public partial class MainWindow : Window
         }
     }
 
+    // ===================== Soltar ícone sobre ícone na Área de Trabalho do Windows =====================
+    private DesktopDragWatcher? _dragWatcher;
+
+    private static string? ResolveDesktopItem(string name)
+    {
+        foreach (var d in new[] { Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                                  Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory) })
+        {
+            if (string.IsNullOrEmpty(d) || !Directory.Exists(d)) continue;
+            foreach (var f in Directory.GetFileSystemEntries(d))
+                if (string.Equals(System.IO.Path.GetFileNameWithoutExtension(f), name, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(System.IO.Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase)) return f;
+        }
+        return null;
+    }
+
+    private static bool IsShortcutFile(string p)
+    {
+        string e = System.IO.Path.GetExtension(p).ToLowerInvariant();
+        return e == ".lnk" || e == ".url";
+    }
+
+    /// <summary>O usuário soltou ícone(s) sobre outro ícone da Área de Trabalho: cria a pasta inteligente e pede o nome.</summary>
+    private void OnDesktopGroup(string[] dragged, string targetName)
+    {
+        string? target = ResolveDesktopItem(targetName);
+        var items = dragged.Where(p => !string.Equals(p, target, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (target == null || items.Count == 0) return;
+
+        var all = new List<string> { target };
+        all.AddRange(items);
+        if (all.Any(p => !IsShortcutFile(p)))
+        {
+            ShowUndoToast("Só atalhos (.lnk/.url) podem ser agrupados em uma pasta inteligente.", null);
+            return;
+        }
+
+        DesktopDragWatcher.Log($"agrupar: alvo='{target}' arrastados={string.Join(" | ", items)}");
+        // sem janela-dona: com "Mostrar Área de Trabalho" (Win+D) a janela principal fica oculta e a caixa sumiria junto
+        var name = InputDialog.Ask(null!, "Nova pasta inteligente", "Pasta inteligente");
+        DesktopDragWatcher.Log($"agrupar: nome informado='{name}'");
+        if (string.IsNullOrWhiteSpace(name)) return;   // cancelou: nada muda
+
+        SmartFolder.Register();
+        var data = new Layout();
+        var entries = new List<Entry>();
+        foreach (var p in all)
+        {
+            string moved = AdoptFromDesktop(p, out string? original);   // o atalho sai da Área de Trabalho
+            var en = new Entry { Name = System.IO.Path.GetFileNameWithoutExtension(p), Path = moved, OriginalPath = original };
+            data.Items.Add(en);
+            entries.Add(en);
+        }
+        string file = SmartFolder.CreateNew(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), name.Trim(), data);
+
+        ShowUndoToast($"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada com {all.Count} atalhos.", () =>
+        {
+            try { File.Delete(file); } catch { }
+            foreach (var en in entries) RestoreOriginal(en);   // os atalhos voltam à Área de Trabalho
+        });
+    }
+
     /// <summary>Aviso discreto no canto da tela com o botão Desfazer (some sozinho em 10 segundos).</summary>
-    private void ShowUndoToast(string text, Action undo)
+    private void ShowUndoToast(string text, Action? undo)
     {
         var toast = new Window
         {
@@ -588,7 +666,7 @@ public partial class MainWindow : Window
         };
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(label);
-        row.Children.Add(undoBtn);
+        if (undo != null) row.Children.Add(undoBtn);
         toast.Content = new Border
         {
             CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 12, 16, 12), Child = row,
@@ -598,7 +676,7 @@ public partial class MainWindow : Window
         };
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         timer.Tick += (_, _) => { timer.Stop(); toast.Close(); };
-        undoBtn.Click += (_, _) => { timer.Stop(); toast.Close(); undo(); };
+        undoBtn.Click += (_, _) => { timer.Stop(); toast.Close(); undo?.Invoke(); };
         toast.Loaded += (_, _) =>
         {
             var wa = SystemParameters.WorkArea;

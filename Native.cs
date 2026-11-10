@@ -93,7 +93,7 @@ public static class Native
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
 
-    private static IntPtr FindDefView()
+    public static IntPtr FindDefView()
     {
         IntPtr progman = FindProgman();
         IntPtr def = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);

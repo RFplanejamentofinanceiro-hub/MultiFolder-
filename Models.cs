@@ -54,6 +54,9 @@ public class Layout
     /// <summary>Cor de destaque da pasta (#RRGGBB); também tinge a miniatura.</summary>
     public string Accent { get; set; } = "#3A4666";
 
+    /// <summary>Soltar um ícone da Área de Trabalho sobre outro cria uma pasta inteligente.</summary>
+    public bool DragGroup { get; set; } = true;
+
     /// <summary>Verifica novas versões no GitHub (no máximo uma vez por dia).</summary>
     public bool AutoUpdateCheck { get; set; } = true;
     public DateTime LastUpdateCheck { get; set; } = DateTime.MinValue;
