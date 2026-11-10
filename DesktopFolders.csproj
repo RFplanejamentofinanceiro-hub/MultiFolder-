@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>DesktopFolders</AssemblyName>
+    <RootNamespace>DesktopFolders</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DfThumb.cs é compilado à parte, com o .NET Framework (ver Thumb\build-thumb.ps1) -->
+    <Compile Remove="Thumb\**" />
+  </ItemGroup>
+
+</Project>

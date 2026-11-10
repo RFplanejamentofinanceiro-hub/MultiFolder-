@@ -1,0 +1,14 @@
+# build
+bin/
+obj/
+*.user
+*.pdb
+.vs/
+
+# instalador gerado (publique-o em Releases, não no código)
+Instalador/app/
+Instalador/saida/
+DesktopFolders-Instalador.zip
+
+# estado interno de ferramentas
+.omc/

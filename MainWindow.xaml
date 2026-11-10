@@ -1,0 +1,92 @@
+<Window x:Class="DesktopFolders.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:DesktopFolders"
+        Title="DesktopFolders" WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False" AllowDrop="True" Drop="Root_Drop"
+        KeyDown="Window_KeyDown">
+
+    <Window.Resources>
+        <DataTemplate x:Key="TileTemplate" DataType="{x:Type local:Entry}">
+            <Border x:Name="Tile" Width="92" Height="104" Margin="6" CornerRadius="10"
+                    Background="#01000000" AllowDrop="True" Drop="Tile_Drop"
+                    MouseLeftButtonDown="Tile_Down" MouseMove="Tile_Move" MouseLeftButtonUp="Tile_Up"
+                    MouseRightButtonUp="Tile_RightClick">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0">
+                    <Grid Width="56" Height="56">
+                        <Image x:Name="IconImg" Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <Border x:Name="FolderBox" Visibility="Collapsed" CornerRadius="14" Background="#66FFFFFF"
+                                BorderBrush="#55FFFFFF" BorderThickness="1" Padding="3">
+                            <ItemsControl ItemsSource="{Binding Preview}" IsHitTestVisible="False">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><UniformGrid Columns="2" Rows="2" /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Image Source="{Binding}" Margin="2" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </Grid>
+                    <TextBlock Text="{Binding Name}" Foreground="White" FontFamily="Segoe UI" FontSize="12"
+                               TextAlignment="Center" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                               MaxHeight="34" Margin="4,6,4,0">
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="4" ShadowDepth="1" Opacity="0.9" />
+                        </TextBlock.Effect>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                    <Setter TargetName="FolderBox" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="IconImg" Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Tile" Property="Background" Value="#33FFFFFF" />
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <!-- Sem fundo: as áreas vazias deixam o mouse passar para a Área de Trabalho do Windows
+         (clique direito vazio = menu nativo, com Novo → Pasta inteligente). Os comandos do app ficam na bandeja. -->
+    <Grid x:Name="Root">
+
+        <!-- Área de trabalho: ícones em colunas, como no Windows -->
+        <ItemsControl x:Name="Desktop" ItemsSource="{Binding Items}" ItemTemplate="{StaticResource TileTemplate}" Margin="8">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemContainerStyle>
+                <Style TargetType="ContentPresenter">
+                    <Setter Property="Canvas.Left" Value="{Binding X}" />
+                    <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                </Style>
+            </ItemsControl.ItemContainerStyle>
+        </ItemsControl>
+
+        <!-- Pasta aberta (estilo iPhone) -->
+        <Grid x:Name="Overlay" Visibility="Collapsed" Background="#B0000000" AllowDrop="True"
+              MouseLeftButtonDown="Overlay_Click" Drop="Overlay_Drop">
+            <Border x:Name="Panel" CornerRadius="28" Background="#F01E2230" BorderBrush="#33FFFFFF" BorderThickness="1"
+                    Padding="24,20,24,24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MinWidth="360" MaxWidth="640" AllowDrop="True"
+                    MouseLeftButtonDown="Panel_Click" Drop="Panel_Drop">
+                <StackPanel>
+                    <TextBlock x:Name="FolderTitle" Foreground="White" FontFamily="Segoe UI" FontSize="22"
+                               FontWeight="SemiBold" TextAlignment="Center" Margin="0,0,0,16" />
+                    <ItemsControl x:Name="FolderItems" ItemTemplate="{StaticResource TileTemplate}" MinHeight="104">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <TextBlock Text="Arraste programas aqui para adicioná-los" Foreground="#99FFFFFF"
+                               FontFamily="Segoe UI" FontSize="11" TextAlignment="Center" Margin="0,12,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
