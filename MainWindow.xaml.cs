@@ -55,6 +55,12 @@ public partial class MainWindow : Window
             _dragWatcher = new DesktopDragWatcher(this) { Enabled = _layout.DragGroup };
             _dragWatcher.GroupRequested += OnDesktopGroup;
             _dragWatcher.Start();
+
+            // pastas .0pasta antigas na Área de Trabalho viram atalhos (que o Windows 11 abre por duplo clique)
+            try { SmartFolder.MigrateLegacy(); } catch { }
+            var migrate = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            migrate.Tick += (_, _) => { try { SmartFolder.MigrateLegacy(); } catch { } };
+            migrate.Start();
             if (_layout.AutoUpdateCheck && DateTime.UtcNow - _layout.LastUpdateCheck > TimeSpan.FromHours(24))
                 CheckUpdates(manual: false);
             // opção de teste: abre a primeira pasta ao iniciar
@@ -188,11 +194,7 @@ public partial class MainWindow : Window
         var name = InputDialog.Ask(this, "Nova pasta inteligente", "Pasta inteligente");
         if (string.IsNullOrWhiteSpace(name)) return;
         string dir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        string safe = string.Concat(name.Split(System.IO.Path.GetInvalidFileNameChars())).Trim();
-        if (safe.Length == 0) safe = "Pasta inteligente";
-        string file = System.IO.Path.Combine(dir, safe + SmartFolder.Ext);
-        for (int i = 2; File.Exists(file); i++) file = System.IO.Path.Combine(dir, $"{safe} ({i}){SmartFolder.Ext}");
-        SmartFolder.Save(file, new Layout());
+        string file = SmartFolder.CreateNew(dir, name.Trim());   // atalho na Área de Trabalho + dados
         MessageBox.Show(this, $"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada na Área de Trabalho.\n\nDê duplo clique para abrir.",
             "DesktopFolders", MessageBoxButton.OK, MessageBoxImage.Information);
     }
@@ -580,7 +582,7 @@ public partial class MainWindow : Window
             // oferece desfazer por alguns segundos: apaga a pasta e devolve os dois à camada, nos mesmos lugares
             ShowUndoToast($"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada na Área de Trabalho.", () =>
             {
-                try { File.Delete(file); } catch { }
+                SmartFolder.Delete(file);   // apaga o atalho da pasta, os dados e o ícone
                 Items.Add(target);
                 Items.Add(src);
             });
@@ -617,9 +619,9 @@ public partial class MainWindow : Window
         if (target == null || items.Count == 0) return;
 
         // alvo é uma pasta inteligente que já existe: adiciona os atalhos a ela
-        if (string.Equals(System.IO.Path.GetExtension(target), SmartFolder.Ext, StringComparison.OrdinalIgnoreCase))
+        if (SmartFolder.TryGetDataFile(target, out string targetData))
         {
-            AddToExistingSmartFolder(target, items);
+            AddToExistingSmartFolder(targetData, System.IO.Path.GetFileNameWithoutExtension(target), items);
             return;
         }
 
@@ -628,6 +630,11 @@ public partial class MainWindow : Window
         if (all.Any(p => !IsShortcutFile(p)))
         {
             ShowUndoToast("Só atalhos (.lnk/.url) podem ser agrupados em uma pasta inteligente.", null);
+            return;
+        }
+        if (items.Any(p => SmartFolder.TryGetDataFile(p, out _)))
+        {
+            ShowUndoToast("Uma pasta inteligente não pode ficar dentro de outra.", null);
             return;
         }
 
@@ -652,17 +659,22 @@ public partial class MainWindow : Window
 
         ShowUndoToast($"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada com {all.Count} atalhos.", () =>
         {
-            try { File.Delete(file); } catch { }
+            SmartFolder.Delete(file);   // apaga o atalho da pasta, os dados e o ícone
             foreach (var en in entries) RestoreOriginal(en);   // os atalhos voltam à Área de Trabalho
         });
     }
 
     /// <summary>Adiciona atalhos (soltos sobre o ícone) a uma pasta inteligente que já existe, com Desfazer.</summary>
-    private void AddToExistingSmartFolder(string folderFile, List<string> items)
+    private void AddToExistingSmartFolder(string folderFile, string title, List<string> items)
     {
         if (items.Any(p => !IsShortcutFile(p)))
         {
             ShowUndoToast("Só atalhos (.lnk/.url) podem ser adicionados a uma pasta inteligente.", null);
+            return;
+        }
+        if (items.Any(p => SmartFolder.TryGetDataFile(p, out _)))
+        {
+            ShowUndoToast("Uma pasta inteligente não pode ficar dentro de outra.", null);
             return;
         }
         var data = SmartFolder.Load(folderFile);
@@ -674,8 +686,7 @@ public partial class MainWindow : Window
             data.Items.Add(en);
             added.Add(en);
         }
-        SmartFolder.Save(folderFile, data);
-        string title = System.IO.Path.GetFileNameWithoutExtension(folderFile);
+        SmartFolder.Save(folderFile, data);   // grava e atualiza o ícone do atalho da pasta
         DesktopDragWatcher.Log($"agrupar: adicionados {added.Count} à pasta existente '{title}'");
 
         ShowUndoToast($"{added.Count} atalho(s) adicionado(s) a \"{title}\".", () =>
@@ -704,7 +715,7 @@ public partial class MainWindow : Window
                 using var dl = DesktopList.Open();
                 // o Explorador pode listar o nome com ou sem a extensão escondida
                 int i = dl?.FindByText(displayName) ?? -1;
-                if (dl != null && i < 0) i = dl.FindByText(displayName + SmartFolder.Ext);
+                if (dl != null && i < 0) i = dl.FindByText(displayName + ".lnk");
                 if (dl != null && i >= 0)
                 {
                     dl.SetItemPosition(i, pos.x, pos.y);
@@ -859,15 +870,9 @@ public partial class MainWindow : Window
         SmartFolder.Register();
 
         string dir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        string name = string.Concat(f.Name.Split(System.IO.Path.GetInvalidFileNameChars())).Trim();
-        if (name.Length == 0) name = "Pasta inteligente";
-        string file = System.IO.Path.Combine(dir, name + SmartFolder.Ext);
-        for (int i = 2; File.Exists(file); i++)
-            file = System.IO.Path.Combine(dir, $"{name} ({i}){SmartFolder.Ext}");
-
         var data = new Layout();
         foreach (var it in f.Items) data.Items.Add(it);
-        SmartFolder.Save(file, data);
+        string file = SmartFolder.CreateNew(dir, f.Name, data);   // atalho na Área de Trabalho + dados
 
         CloseOverlay();
         Items.Remove(f); // os atalhos agora pertencem ao arquivo; não devolve nada à Área de Trabalho

@@ -10,12 +10,8 @@
     <AssemblyName>DesktopFolders</AssemblyName>
     <RootNamespace>DesktopFolders</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- DfThumb.cs é compilado à parte, com o .NET Framework (ver Thumb\build-thumb.ps1) -->
-    <Compile Remove="Thumb\**" />
-  </ItemGroup>
 
 </Project>

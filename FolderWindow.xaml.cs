@@ -14,6 +14,7 @@ namespace DesktopFolders;
 public partial class FolderWindow : Window
 {
     private readonly string _file;
+    private readonly string _title;
     private readonly Layout _data;
 
     public FolderWindow(string file, string[]? dropped = null)
@@ -21,7 +22,8 @@ public partial class FolderWindow : Window
         InitializeComponent();
         _file = file;
         _data = SmartFolder.Load(file);
-        FolderTitle.Text = System.IO.Path.GetFileNameWithoutExtension(file);
+        _title = SmartFolder.DisplayName(file, _data);   // nome do atalho na Área de Trabalho
+        FolderTitle.Text = _title;
         List.ItemsSource = _data.Items;
         BuildDots();
         ApplyTheme();
@@ -102,7 +104,7 @@ public partial class FolderWindow : Window
 
     private void Export_Click(object s, RoutedEventArgs e)
     {
-        string title = System.IO.Path.GetFileNameWithoutExtension(_file);
+        string title = _title;
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title = "Exportar pasta inteligente",
@@ -235,7 +237,7 @@ public partial class FolderWindow : Window
         foreach (var raw in paths)
         {
             if (!File.Exists(raw) && !Directory.Exists(raw)) continue;
-            if (raw.EndsWith(SmartFolder.Ext, StringComparison.OrdinalIgnoreCase)) continue; // não aninha pastas
+            if (SmartFolder.TryGetDataFile(raw, out _)) continue; // não aninha pastas inteligentes
             string name = Directory.Exists(raw) ? System.IO.Path.GetFileName(raw.TrimEnd('\\'))
                                                 : System.IO.Path.GetFileNameWithoutExtension(raw);
             string path = MainWindow.AdoptFromDesktop(raw, out string? original);

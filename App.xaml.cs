@@ -50,7 +50,9 @@ public partial class App : Application
         if (xi >= 0 && xi + 2 < e.Args.Length)
         {
             string src = e.Args[xi + 1];
-            Package.Export(System.IO.Path.GetFileNameWithoutExtension(src), SmartFolder.Load(src), e.Args[xi + 2]);
+            if (!SmartFolder.TryGetDataFile(src, out string srcData)) srcData = src;
+            var srcLayout = SmartFolder.Load(srcData);
+            Package.Export(SmartFolder.DisplayName(srcData, srcLayout), srcLayout, e.Args[xi + 2]);
             Shutdown();
             return;
         }
@@ -82,8 +84,27 @@ public partial class App : Application
         }
         if (e.Args.Contains("--registrar-miniatura") || e.Args.Contains("--remover-miniatura"))
         {
-            string r = e.Args.Contains("--registrar-miniatura") ? SmartFolder.RegisterThumbnailMachine() : SmartFolder.UnregisterThumbnailMachine();
-            if (!e.Args.Contains("--silencioso")) MessageBox.Show(r, "DesktopFolders - menu Novo e miniatura");
+            // versões 1.1.x pediam um registro de administrador (menu Novo e miniatura); a 1.2 não precisa mais.
+            // --remover-miniatura (como administrador) limpa o que a versão antiga deixou.
+            string r = e.Args.Contains("--remover-miniatura")
+                ? SmartFolder.UnregisterThumbnailMachine()
+                : "Não é mais necessário: as pastas inteligentes agora são atalhos comuns.";
+            if (!e.Args.Contains("--silencioso")) MessageBox.Show(r, "DesktopFolders");
+            Shutdown();
+            return;
+        }
+        if (e.Args.Contains("--atualizar-icones"))   // refaz o ícone de todas as pastas inteligentes da Área de Trabalho
+        {
+            int n = 0;
+            foreach (var l in SmartFolder.ListOnDesktop()) { SmartFolder.Save(l.DataFile, SmartFolder.Load(l.DataFile)); n++; }
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "df_icones.txt"), n.ToString());
+            Shutdown();
+            return;
+        }
+        if (e.Args.Contains("--migrar"))   // converte pastas .0pasta antigas da Área de Trabalho em atalhos
+        {
+            int moved = SmartFolder.MigrateLegacy();
+            File.WriteAllText(Path.Combine(Path.GetTempPath(), "df_migrar.txt"), moved.ToString());
             Shutdown();
             return;
         }
@@ -149,7 +170,7 @@ public partial class App : Application
             Shutdown();
         };
 
-        SmartFolder.Register(); // garante Novo → Pasta inteligente apontando para este programa
+        SmartFolder.Register(); // garante os comandos do botão direito apontando para este programa
         new MainWindow().Show();
     }
 

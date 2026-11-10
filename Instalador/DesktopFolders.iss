@@ -1,7 +1,7 @@
 ﻿; Instalador do DesktopFolders (Inno Setup 6). Gerar com: Criar-setup.ps1
 #define AppName "DesktopFolders"
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.2.0"
 #endif
 
 [Setup]
@@ -28,13 +28,10 @@ CloseApplications=yes
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
 [Tasks]
-Name: "sistema"; Description: "Ativar o menu Novo > Pasta inteligente e a miniatura do ícone (pede permissão de administrador uma vez)"
-Name: "startup"; Description: "Iniciar o DesktopFolders com o Windows (somente a camada de ícones livres)"; Flags: unchecked
+Name: "startup"; Description: "Iniciar o DesktopFolders com o Windows (necessário para soltar um ícone sobre outro na Área de Trabalho)"
 
 [Files]
 Source: "app\DesktopFolders.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "app\DfThumb.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Instalar-miniatura.cmd"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{userprograms}\DesktopFolders"; Filename: "{app}\DesktopFolders.exe"
@@ -43,18 +40,11 @@ Name: "{userprograms}\DesktopFolders"; Filename: "{app}\DesktopFolders.exe"
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DesktopFolders"; ValueData: """{app}\DesktopFolders.exe"""; Tasks: startup; Flags: uninsdeletevalue
 
 [Run]
-; registra para o usuário atual: "Pasta inteligente", abrir pasta, "Adicionar à pasta inteligente..."
+; registra os itens do botão direito ("Nova pasta inteligente", "Adicionar à pasta inteligente...") só para o usuário atual
 Filename: "{app}\DesktopFolders.exe"; Parameters: "--registrar"; Flags: runhidden waituntilterminated
-; opcional: registro da máquina (menu Novo do Windows 11 e miniatura) - abre o aviso de administrador do Windows
-Filename: "{app}\DesktopFolders.exe"; Parameters: "--registrar-miniatura --silencioso"; Verb: "runas"; Flags: shellexec waituntilterminated; Tasks: sistema; StatusMsg: "Aguardando a permissão de administrador..."
+; converte pastas .0pasta das versões 1.1.x em atalhos (que o Windows 11 abre por duplo clique)
+Filename: "{app}\DesktopFolders.exe"; Parameters: "--migrar"; Flags: runhidden waituntilterminated
 Filename: "{app}\DesktopFolders.exe"; Description: "Abrir o DesktopFolders agora"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{app}\DesktopFolders.exe"; Parameters: "--remover-registro"; Flags: runhidden waituntilterminated; RunOnceId: "RemoverRegistroUsuario"
-Filename: "{app}\DesktopFolders.exe"; Parameters: "--remover-miniatura --silencioso"; Verb: "runas"; Flags: shellexec waituntilterminated; RunOnceId: "RemoverRegistroMaquina"; Check: IntegracaoDaMaquinaAtiva
-
-[Code]
-function IntegracaoDaMaquinaAtiva: Boolean;
-begin
-  Result := RegKeyExists(HKLM, 'SOFTWARE\Classes\.0pasta');
-end;

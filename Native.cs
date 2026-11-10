@@ -27,10 +27,78 @@ public static class Native
 
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr h);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint PrivateExtractIcons(string file, int index, int cx, int cy, IntPtr[] phicon, uint[] piconid, uint nIcons, uint flags);
+    [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr h);
+
+    /// <summary>
+    /// Ícone PRÓPRIO do atalho (IconLocation do .lnk, IconFile do .url), como o Explorador mostra
+    /// (ex.: atalhos de aplicativos web do Chrome). Retorna null se o atalho usa o ícone do programa.
+    /// </summary>
+    public static (string file, int index)? GetShortcutIconLocation(string path)
+    {
+        try
+        {
+            string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            string? loc = null;
+            if (ext == ".lnk")
+            {
+                var t = Type.GetTypeFromProgID("WScript.Shell");
+                dynamic sh = Activator.CreateInstance(t!)!;
+                dynamic l = sh.CreateShortcut(path);
+                loc = l.IconLocation;
+            }
+            else if (ext == ".url")
+            {
+                string? file = null, index = "0";
+                foreach (var line in File.ReadLines(path))
+                {
+                    if (line.StartsWith("IconFile=", StringComparison.OrdinalIgnoreCase)) file = line.Substring(9);
+                    else if (line.StartsWith("IconIndex=", StringComparison.OrdinalIgnoreCase)) index = line.Substring(10);
+                }
+                if (!string.IsNullOrWhiteSpace(file)) loc = file + "," + index;
+            }
+            if (string.IsNullOrWhiteSpace(loc)) return null;
+
+            loc = Environment.ExpandEnvironmentVariables(loc.Trim());
+            int comma = loc.LastIndexOf(',');
+            string f = (comma >= 0 ? loc.Substring(0, comma) : loc).Trim().Trim('"');
+            int idx = 0;
+            if (comma >= 0) int.TryParse(loc.Substring(comma + 1).Trim(), out idx);
+            if (f.Length == 0 || !File.Exists(f)) return null;
+            return (f, idx);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Extrai um ícone de .ico/.exe/.dll no tamanho pedido (com transparência).</summary>
+    public static ImageSource? IconFromFile(string file, int index, int size)
+    {
+        var h = new IntPtr[1];
+        var ids = new uint[1];
+        try
+        {
+            if (PrivateExtractIcons(file, index, size, size, h, ids, 1, 0) == 0 || h[0] == IntPtr.Zero) return null;
+            var bmp = Imaging.CreateBitmapSourceFromHIcon(h[0], Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            bmp.Freeze();
+            return bmp;
+        }
+        catch { return null; }
+        finally { if (h[0] != IntPtr.Zero) DestroyIcon(h[0]); }
+    }
+
     public static ImageSource? GetIcon(string path, int size = 96)
     {
         try
         {
+            // o ícone próprio do atalho tem prioridade sobre o ícone do programa de destino
+            var own = GetShortcutIconLocation(path);
+            if (own != null)
+            {
+                var img = IconFromFile(own.Value.file, own.Value.index, size);
+                if (img != null) return img;
+            }
+
             string src = path;
 
             // Atalho (.lnk): usa o ícone do alvo para não aparecer a setinha de atalho.

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -7,20 +9,39 @@ using Microsoft.Win32;
 namespace DesktopFolders;
 
 /// <summary>
-/// "Pasta inteligente": um arquivo (.pastainteligente) que guarda a lista de programas.
-/// Registrado no menu oficial Novo do Windows; duplo clique abre o popup.
+/// "Pasta inteligente" = um ATALHO (.lnk) comum na Área de Trabalho + um arquivo de dados na pasta do app.
+/// O atalho abre o DesktopFolders com o arquivo de dados (duplo clique sempre funciona, inclusive no OneDrive) e
+/// usa um ícone (.ico) gerado pelo programa com os apps de dentro. Nada de tipo de arquivo próprio no Windows.
 /// </summary>
 public static class SmartFolder
 {
-    // A lista "Novo" do Windows é ordenada pela extensão: começar com "0" faz a Pasta inteligente
-    // aparecer logo abaixo de "Pasta" e "Atalho". A extensão fica escondida (NeverShowExt).
+    /// <summary>Extensão do ARQUIVO DE DADOS (fica em %APPDATA%\DesktopFolders\Pastas).</summary>
     public const string Ext = ".0pasta";
     private const string LegacyExt = ".pastainteligente";
     private const string ProgId = "DesktopFolders.PastaInteligente";
 
     [DllImport("shell32.dll")] private static extern void SHChangeNotify(int eventId, uint flags, IntPtr a, IntPtr b);
 
-    /// <summary>Registra o tipo para o usuário atual (sem administrador). Pode ser chamado várias vezes.</summary>
+    // ===================== Pastas do app =====================
+    private static string AppDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DesktopFolders");
+    public static string DataDir => Path.Combine(AppDir, "Pastas");
+    /// <summary>
+    /// Ícones gerados. Ficam em ProgramData (e NÃO em AppData): no Windows 11 o processo que desenha os ícones da
+    /// Área de Trabalho não consegue ler pastas novas dentro de AppData e mostra uma página em branco.
+    /// </summary>
+    public static string IconDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DesktopFolders", "Icones");
+    private static string OldIconDir => Path.Combine(AppDir, "Icones");   // onde as primeiras versões 1.2 guardavam
+    public static string LegacyDir => Path.Combine(DataDir, "legado");
+
+    public static string[] DesktopDirs => new[]
+    {
+        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory)
+    }.Where(d => !string.IsNullOrEmpty(d) && Directory.Exists(d)).Distinct().ToArray();
+
+    // ===================== Registro (somente usuário atual, sem administrador) =====================
+    /// <summary>Registra os comandos do botão direito e o abridor de arquivos. Pode ser chamado várias vezes.</summary>
     public static void Register()
     {
         try
@@ -28,21 +49,21 @@ public static class SmartFolder
             string? exe = Environment.ProcessPath;
             if (string.IsNullOrEmpty(exe)) return;
 
-            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + Ext))
-            {
-                k.SetValue("", ProgId);
-                using var sn = k.CreateSubKey("ShellNew");   // aparece em Novo → Pasta inteligente
-                sn.SetValue("NullFile", "");
-                sn.SetValue("ItemName", "Pasta inteligente"); // nome do arquivo recém-criado
-            }
+            // arquivo de dados (.0pasta): só para abrir direto, se alguém tiver um
+            using (var k = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + Ext)) k.SetValue("", ProgId);
             using (var p = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + ProgId))
             {
-                p.SetValue("", "Pasta inteligente");
-                p.SetValue("FriendlyTypeName", "Pasta inteligente");
-                p.SetValue("NeverShowExt", "");              // esconde a extensão, como nas pastas
+                p.SetValue("", "Pasta inteligente (dados)");
+                p.SetValue("FriendlyTypeName", "Pasta inteligente (dados)");
                 using (var i = p.CreateSubKey("DefaultIcon")) i.SetValue("", $"\"{exe}\",0");
                 using (var c = p.CreateSubKey(@"shell\open\command")) c.SetValue("", $"\"{exe}\" \"%1\"");
             }
+            // versões antigas registravam o item no menu Novo; o atalho substitui isso
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + Ext + @"\ShellNew", false);
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + Ext + @"\ShellEx", false);
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + LegacyExt, false);
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + ProgId + @"\shellex", false);
+
             // Botão direito no fundo de qualquer pasta/Área de Trabalho (menu clássico): "Nova pasta inteligente"
             using (var nv = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\Background\shell\DesktopFolders.NovaPasta"))
             {
@@ -62,11 +83,6 @@ public static class SmartFolder
                 using (var c = pp.CreateSubKey(@"shell\open\command")) c.SetValue("", $"\"{exe}\" --importar \"%1\"");
             }
 
-            // remove o registro da extensão antiga (.pastainteligente), de versões anteriores
-            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + LegacyExt, false);
-            // sem DropHandler: o Windows não permite "soltar sobre o ícone" de um tipo próprio sem extensão nativa
-            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + ProgId + @"\shellex", false);
-
             // Clique direito em atalhos/programas → "Adicionar à pasta inteligente..."
             foreach (var type in new[] { "lnkfile", "exefile" })
             {
@@ -80,79 +96,13 @@ public static class SmartFolder
         }
         catch (Exception ex)
         {
-            // sem acesso ao registro: segue sem o menu Novo; anota o motivo para diagnóstico
             try
             {
-                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DesktopFolders");
-                Directory.CreateDirectory(dir);
-                File.AppendAllText(Path.Combine(dir, "erro-registro.txt"), $"{DateTime.Now:s} {ex}\n");
+                Directory.CreateDirectory(AppDir);
+                File.AppendAllText(Path.Combine(AppDir, "erro-registro.txt"), $"{DateTime.Now:s} {ex}\n");
             }
             catch { }
         }
-    }
-
-    private const string ThumbClsid = "{7B3F1E52-9A0C-4D6B-8E21-5C4D7A9E1F30}";
-    private const string ThumbHandlerKey = "{E357FCCD-A995-4576-B01F-234630154E96}"; // IThumbnailProvider
-
-    /// <summary>
-    /// Miniatura (mostra os apps de dentro no ícone). O Windows só carrega provedores de miniatura .NET
-    /// no processo isolado se estiverem registrados para TODOS os usuários (HKLM) → exige administrador.
-    /// </summary>
-    /// <summary>
-    /// Passo de administrador (uma vez): o menu Novo do Windows 11 só lista tipos registrados na MÁQUINA,
-    /// e o mesmo vale para a miniatura. Registra a extensão em HKLM (o resto continua por usuário).
-    /// </summary>
-    public static string RegisterThumbnailMachine()
-    {
-        string? exe = Environment.ProcessPath;
-        string dll = Path.Combine(Path.GetDirectoryName(exe ?? "") ?? "", "DfThumb.dll");
-        try
-        {
-            using (var k = Registry.LocalMachine.CreateSubKey(@"Software\Classes\" + Ext))
-            {
-                k.SetValue("", ProgId);
-                using var sn = k.CreateSubKey("ShellNew");
-                sn.SetValue("NullFile", "");
-                sn.SetValue("ItemName", "Pasta inteligente");
-            }
-            string extra = "";
-            if (File.Exists(dll)) RegisterThumbnail(Registry.LocalMachine, dll);
-            else extra = " (DfThumb.dll não encontrado: só o menu Novo foi registrado)";
-            SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
-            return "Integração registrada: menu Novo e miniatura." + extra +
-                   "\n\nSe não aparecer de imediato, reinicie o Explorador de Arquivos (Gerenciador de Tarefas > Explorador do Windows > Reiniciar).";
-        }
-        catch (UnauthorizedAccessException) { return "Sem permissão: execute como administrador."; }
-        catch (System.Security.SecurityException) { return "Sem permissão: execute como administrador."; }
-    }
-
-    public static string UnregisterThumbnailMachine()
-    {
-        try
-        {
-            Registry.LocalMachine.DeleteSubKeyTree(@"Software\Classes\CLSID\" + ThumbClsid, false);
-            Registry.LocalMachine.DeleteSubKeyTree(@"Software\Classes\" + Ext, false);
-            SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
-            return "Integração removida (menu Novo e miniatura).";
-        }
-        catch (UnauthorizedAccessException) { return "Sem permissão: execute como administrador."; }
-    }
-
-    private static void RegisterThumbnail(RegistryKey root, string dll)
-    {
-        using (var c = root.CreateSubKey(@"Software\Classes\CLSID\" + ThumbClsid))
-        {
-            c.SetValue("", "Pasta inteligente - miniatura");
-            using var i = c.CreateSubKey("InprocServer32");
-            i.SetValue("", "mscoree.dll");
-            i.SetValue("ThreadingModel", "Both");
-            i.SetValue("Class", "DfThumb.Provider");
-            i.SetValue("Assembly", "DfThumb, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null");
-            i.SetValue("RuntimeVersion", "v4.0.30319");
-            i.SetValue("CodeBase", new Uri(dll).AbsoluteUri);
-        }
-        using (var h = root.CreateSubKey(@"Software\Classes\" + Ext + @"\ShellEx\" + ThumbHandlerKey))
-            h.SetValue("", ThumbClsid);
     }
 
     public static void Unregister()
@@ -161,10 +111,6 @@ public static class SmartFolder
         {
             foreach (var type in new[] { "lnkfile", "exefile" })
                 Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + type + @"\shell\DesktopFolders.Add", false);
-            // limpa restos de registros antigos da miniatura no usuário atual
-            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\CLSID\" + ThumbClsid, false);
-            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\DesktopFolders.Thumb", false);
-            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + Ext + @"\ShellEx\" + ThumbHandlerKey, false);
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + Ext, false);
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + LegacyExt, false);
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + ProgId, false);
@@ -176,18 +122,23 @@ public static class SmartFolder
         catch { }
     }
 
-    /// <summary>Cria o arquivo de uma pasta inteligente em <paramref name="dir"/> (nome único) e retorna o caminho.</summary>
-    public static string CreateNew(string dir, string name, Layout? data = null)
+    /// <summary>
+    /// Limpa o registro de máquina (administrador) que versões 1.1.x faziam para o menu Novo e a miniatura.
+    /// Não é mais necessário; o atalho da pasta funciona sem nada disso.
+    /// </summary>
+    public static string UnregisterThumbnailMachine()
     {
-        string safe = string.Concat(name.Split(Path.GetInvalidFileNameChars())).Trim();
-        if (safe.Length == 0) safe = "Pasta inteligente";
-        string file = Path.Combine(dir, safe + Ext);
-        for (int i = 2; File.Exists(file); i++) file = Path.Combine(dir, $"{safe} ({i}){Ext}");
-        Save(file, data ?? new Layout());
-        NotifyChanged(file, created: true);   // o ícone já nasce com a miniatura dos apps
-        return file;
+        try
+        {
+            Registry.LocalMachine.DeleteSubKeyTree(@"Software\Classes\CLSID\{7B3F1E52-9A0C-4D6B-8E21-5C4D7A9E1F30}", false);
+            Registry.LocalMachine.DeleteSubKeyTree(@"Software\Classes\" + Ext, false);
+            SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
+            return "Registro antigo de máquina removido (menu Novo e miniatura).";
+        }
+        catch (UnauthorizedAccessException) { return "Sem permissão: execute como administrador."; }
     }
 
+    // ===================== Dados (JSON) =====================
     public static Layout Load(string file)
     {
         try
@@ -199,17 +150,196 @@ public static class SmartFolder
         return new Layout();
     }
 
+    /// <summary>Grava os dados; se for uma pasta do app, atualiza o ícone dos atalhos dela.</summary>
     public static void Save(string file, Layout data)
+    {
+        try { File.WriteAllText(file, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); }
+        catch { return; }
+
+        if (file.StartsWith(DataDir, StringComparison.OrdinalIgnoreCase)) RefreshLinks(file, data);
+        else NotifyChanged(file, created: false);
+    }
+
+    // ===================== Atalhos (.lnk) =====================
+    private static readonly Dictionary<string, (DateTime mtime, string target, string args)> LinkCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static dynamic NewShell()
+    {
+        var t = Type.GetTypeFromProgID("WScript.Shell");
+        return Activator.CreateInstance(t!)!;
+    }
+
+    private static (string target, string args)? ReadLink(string lnk)
     {
         try
         {
-            File.WriteAllText(file, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
-            NotifyChanged(file, created: false);
+            var mtime = File.GetLastWriteTimeUtc(lnk);
+            if (LinkCache.TryGetValue(lnk, out var c) && c.mtime == mtime) return (c.target, c.args);
+            dynamic sh = NewShell();
+            dynamic l = sh.CreateShortcut(lnk);
+            string target = l.TargetPath ?? "", args = l.Arguments ?? "";
+            LinkCache[lnk] = (mtime, target, args);
+            return (target, args);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Se <paramref name="path"/> é uma pasta inteligente (atalho nosso, ou arquivo de dados), devolve o arquivo de dados.</summary>
+    public static bool TryGetDataFile(string path, out string dataFile)
+    {
+        dataFile = "";
+        if (path.EndsWith(Ext, StringComparison.OrdinalIgnoreCase) && File.Exists(path)) { dataFile = path; return true; }
+        if (!path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) return false;
+        var info = ReadLink(path);
+        if (info == null) return false;
+        string arg = info.Value.args.Trim().Trim('"');
+        if (arg.EndsWith(Ext, StringComparison.OrdinalIgnoreCase) &&
+            info.Value.target.EndsWith("DesktopFolders.exe", StringComparison.OrdinalIgnoreCase) && File.Exists(arg))
+        {
+            dataFile = arg;
+            return true;
+        }
+        return false;
+    }
+
+    public sealed record SmartLink(string Name, string Lnk, string DataFile);
+
+    /// <summary>Pastas inteligentes que estão na Área de Trabalho (atalhos nossos).</summary>
+    public static List<SmartLink> ListOnDesktop()
+    {
+        var list = new List<SmartLink>();
+        foreach (var dir in DesktopDirs)
+            foreach (var lnk in Directory.GetFiles(dir, "*.lnk"))
+                if (TryGetDataFile(lnk, out var data)) list.Add(new SmartLink(Path.GetFileNameWithoutExtension(lnk), lnk, data));
+        return list.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    public static List<string> FindLinks(string dataFile) =>
+        ListOnDesktop().Where(x => string.Equals(x.DataFile, dataFile, StringComparison.OrdinalIgnoreCase)).Select(x => x.Lnk).ToList();
+
+    /// <summary>Nome para mostrar: o do atalho na Área de Trabalho (que o usuário pode renomear).</summary>
+    public static string DisplayName(string dataFile, Layout data)
+    {
+        try { var l = FindLinks(dataFile).FirstOrDefault(); if (l != null) return Path.GetFileNameWithoutExtension(l); } catch { }
+        return string.IsNullOrWhiteSpace(data.Title) ? "Pasta inteligente" : data.Title!;
+    }
+
+    private static string SafeName(string name)
+    {
+        string safe = string.Concat(name.Split(Path.GetInvalidFileNameChars())).Trim();
+        return safe.Length == 0 ? "Pasta inteligente" : safe;
+    }
+
+    private static string UniquePath(string dir, string name, string ext)
+    {
+        string p = Path.Combine(dir, name + ext);
+        for (int i = 2; File.Exists(p); i++) p = Path.Combine(dir, $"{name} ({i}){ext}");
+        return p;
+    }
+
+    private static string MakeIcon(string dataFile, Layout data)
+    {
+        string id = Path.GetFileNameWithoutExtension(dataFile);
+        Directory.CreateDirectory(IconDir);
+        foreach (var old in Directory.GetFiles(IconDir, id + "-*.ico")) { try { File.Delete(old); } catch { } }
+        if (Directory.Exists(OldIconDir))
+            foreach (var old in Directory.GetFiles(OldIconDir, id + "-*.ico")) { try { File.Delete(old); } catch { } }
+        string ico = Path.Combine(IconDir, $"{id}-{DateTime.UtcNow.Ticks}.ico");   // nome novo: o Explorador refaz o ícone
+        try { SmartFolderIcon.Create(data.Items, data.Accent, ico); }
+        catch { /* sem ícone gerado: o atalho usa o ícone do programa */ }
+        return File.Exists(ico) ? ico : "";
+    }
+
+    private static void WriteLink(string lnk, string dataFile, string ico)
+    {
+        string exe = Environment.ProcessPath ?? "";
+        dynamic sh = NewShell();
+        dynamic l = sh.CreateShortcut(lnk);
+        l.TargetPath = exe;
+        l.Arguments = "\"" + dataFile + "\"";
+        l.WorkingDirectory = Path.GetDirectoryName(exe) ?? "";
+        l.Description = "Pasta inteligente";
+        l.IconLocation = (ico.Length > 0 ? ico : exe) + ",0";
+        l.Save();
+        LinkCache.Remove(lnk);
+    }
+
+    private static void RefreshLinks(string dataFile, Layout data)
+    {
+        try
+        {
+            var links = FindLinks(dataFile);
+            if (links.Count == 0) return;
+            string ico = MakeIcon(dataFile, data);
+            foreach (var lnk in links)
+            {
+                WriteLink(lnk, dataFile, ico);
+                NotifyChanged(lnk, created: false);
+            }
         }
         catch { }
     }
 
-    /// <summary>Avisa o Explorador que o arquivo mudou, para ele refazer a miniatura (ícone com os apps) na hora.</summary>
+    /// <summary>Cria uma pasta inteligente (atalho em <paramref name="dir"/> + dados). Retorna o caminho do atalho.</summary>
+    public static string CreateNew(string dir, string name, Layout? data = null)
+    {
+        data ??= new Layout();
+        data.Title = name;
+        Directory.CreateDirectory(DataDir);
+        string dataFile = Path.Combine(DataDir, Guid.NewGuid().ToString("N") + Ext);
+        File.WriteAllText(dataFile, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
+
+        string ico = MakeIcon(dataFile, data);
+        string lnk = UniquePath(dir, SafeName(name), ".lnk");
+        WriteLink(lnk, dataFile, ico);
+        NotifyChanged(lnk, created: true);
+        return lnk;
+    }
+
+    /// <summary>Apaga a pasta (atalho, dados e ícone). Os atalhos de dentro NÃO são devolvidos aqui.</summary>
+    public static void Delete(string lnkOrData)
+    {
+        try
+        {
+            if (!TryGetDataFile(lnkOrData, out var data)) return;
+            foreach (var l in FindLinks(data)) { try { File.Delete(l); } catch { } }
+            string id = Path.GetFileNameWithoutExtension(data);
+            try { File.Delete(data); } catch { }
+            if (Directory.Exists(IconDir)) foreach (var i in Directory.GetFiles(IconDir, id + "-*.ico")) { try { File.Delete(i); } catch { } }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Converte arquivos .0pasta soltos na Área de Trabalho (formato das versões 1.1.x, que o Windows 11 não abre
+    /// por duplo clique) em pastas inteligentes novas (atalho + dados). O original vai para Pastas\legado.
+    /// </summary>
+    public static int MigrateLegacy()
+    {
+        int n = 0;
+        foreach (var dir in DesktopDirs)
+        {
+            string[] files;
+            try { files = Directory.GetFiles(dir, "*" + Ext); } catch { continue; }
+            foreach (var f in files)
+            {
+                try
+                {
+                    var data = Load(f);
+                    string name = Path.GetFileNameWithoutExtension(f);
+                    string lnk = CreateNew(dir, name, data);
+                    Directory.CreateDirectory(LegacyDir);
+                    string keep = UniquePath(LegacyDir, name, Ext);
+                    File.Move(f, keep);
+                    n++;
+                }
+                catch { /* tenta de novo na próxima vez */ }
+            }
+        }
+        return n;
+    }
+
+    /// <summary>Avisa o Explorador que o item mudou, para ele refazer o ícone na hora.</summary>
     public static void NotifyChanged(string file, bool created)
     {
         IntPtr p = Marshal.StringToHGlobalUni(file);

@@ -48,6 +48,9 @@ public class Layout
 {
     public bool HideNative { get; set; }
 
+    /// <summary>Nome da pasta inteligente (usado se o atalho dela não for encontrado).</summary>
+    public string? Title { get; set; }
+
     /// <summary>Tema do popup da pasta inteligente: "Escuro" ou "Claro".</summary>
     public string Theme { get; set; } = "Escuro";
 

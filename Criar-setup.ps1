@@ -7,14 +7,13 @@ $app    = Join-Path $inst 'app'
 $dotnet = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
 if (-not $dotnet) { $dotnet = 'C:\Program Files\dotnet\dotnet.exe' }
 $iscc   = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $iscc) { throw 'Inno Setup 6 não encontrado (winget install JRSoftware.InnoSetup).' }
+if (-not $iscc) { throw 'Inno Setup 6 nao encontrado (winget install JRSoftware.InnoSetup).' }
 
 Remove-Item $app -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $app | Out-Null
 & $dotnet publish (Join-Path $root 'DesktopFolders.csproj') -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $app
 if ($LASTEXITCODE -ne 0) { throw 'Falha no publish' }
-& (Join-Path $root 'Thumb\build-thumb.ps1') -Out $app
 Remove-Item (Join-Path $app '*.pdb') -Force -ErrorAction SilentlyContinue
 
 $version = ([xml](Get-Content (Join-Path $root 'DesktopFolders.csproj'))).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1

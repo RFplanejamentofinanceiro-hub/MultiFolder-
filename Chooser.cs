@@ -11,13 +11,7 @@ public static class Chooser
 {
     public static Window Create(string[] itemPaths)
     {
-        var dirs = new[]
-        {
-            Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory)
-        }.Where(d => !string.IsNullOrEmpty(d) && Directory.Exists(d)).Distinct();
-
-        var folders = dirs.SelectMany(d => Directory.GetFiles(d, "*" + SmartFolder.Ext)).OrderBy(f => f).ToList();
+        var folders = SmartFolder.ListOnDesktop();   // pastas inteligentes = atalhos nossos na Área de Trabalho
         string itemName = itemPaths.Length == 1
             ? $"\"{Path.GetFileNameWithoutExtension(itemPaths[0])}\""
             : $"{itemPaths.Length} itens";
@@ -33,13 +27,13 @@ public static class Chooser
         panel.Children.Add(new TextBlock
         {
             Text = folders.Count == 0
-                ? "Nenhuma pasta inteligente na Área de Trabalho.\nCrie uma em: clique direito → Novo → Pasta inteligente."
+                ? "Nenhuma pasta inteligente na Área de Trabalho.\nCrie uma: clique direito na Área de Trabalho → Mostrar mais opções → Nova pasta inteligente."
                 : $"Em qual pasta adicionar {itemName}?",
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10)
         });
 
         var list = new ListBox { MinHeight = 90, MaxHeight = 240, Margin = new Thickness(0, 0, 0, 12) };
-        foreach (var f in folders) list.Items.Add(new ListBoxItem { Content = Path.GetFileNameWithoutExtension(f), Tag = f, Padding = new Thickness(6, 4, 6, 4) });
+        foreach (var f in folders) list.Items.Add(new ListBoxItem { Content = f.Name, Tag = f.DataFile, Padding = new Thickness(6, 4, 6, 4) });
         if (list.Items.Count > 0) list.SelectedIndex = 0;
 
         var ok = new Button { Content = "Adicionar", IsDefault = true, Width = 90, Padding = new Thickness(0, 4, 0, 4), HorizontalAlignment = HorizontalAlignment.Right };

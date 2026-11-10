@@ -78,11 +78,7 @@ public static class Package
         }
 
         string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        string safe = string.Concat(man.Titulo.Split(System.IO.Path.GetInvalidFileNameChars())).Trim();
-        if (safe.Length == 0) safe = "Pasta inteligente";
-        string file = System.IO.Path.Combine(desk, safe + SmartFolder.Ext);
-        for (int i = 2; File.Exists(file); i++) file = System.IO.Path.Combine(desk, $"{safe} ({i}){SmartFolder.Ext}");
-        SmartFolder.Save(file, man.Dados);
+        string file = SmartFolder.CreateNew(desk, man.Titulo, man.Dados);   // atalho na Área de Trabalho + dados
 
         string resumo = $"\"{man.Titulo}\" importada na Área de Trabalho com {total} item(ns).";
         if (faltando > 0) resumo += $"\n\n{faltando} item(ns) apontam para programas que não existem neste computador e não vão abrir.";

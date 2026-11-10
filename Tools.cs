@@ -112,7 +112,12 @@ public static class Backup
         var lf = Path.Combine(AppData, "layout.json");
         if (File.Exists(lf)) { File.Copy(lf, Path.Combine(dir, "layout.json"), true); layout = 1; }
         shortcuts = CopyDir(Path.Combine(AppData, "Atalhos"), Path.Combine(dir, "Atalhos"));
-        foreach (var d in DesktopDirs) smart += CopyDir(d, Path.Combine(dir, "Pastas"), "*" + SmartFolder.Ext);
+        // pastas inteligentes: dados + ícones (na pasta do app) e os atalhos que estão na Área de Trabalho
+        smart = CopyDir(SmartFolder.DataDir, Path.Combine(dir, "Pastas"), "*" + SmartFolder.Ext);
+        CopyDir(SmartFolder.IconDir, Path.Combine(dir, "Icones"));
+        var linksDir = Path.Combine(dir, "Pastas-Atalhos");
+        Directory.CreateDirectory(linksDir);
+        foreach (var l in SmartFolder.ListOnDesktop()) File.Copy(l.Lnk, Path.Combine(linksDir, Path.GetFileName(l.Lnk)), true);
         File.WriteAllText(Path.Combine(dir, "ultimo-backup.txt"), DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"));
         return $"Backup salvo em:\n{dir}\n\n• Layout: {layout}\n• Atalhos movidos: {shortcuts}\n• Pastas inteligentes: {smart}";
     }
@@ -127,7 +132,9 @@ public static class Backup
         var lf = Path.Combine(dir, "layout.json");
         if (File.Exists(lf)) { File.Copy(lf, Path.Combine(AppData, "layout.json"), true); layout = 1; }
         int shortcuts = CopyDir(Path.Combine(dir, "Atalhos"), Path.Combine(AppData, "Atalhos"));
-        int smart = CopyDir(Path.Combine(dir, "Pastas"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+        int smart = CopyDir(Path.Combine(dir, "Pastas"), SmartFolder.DataDir, "*" + SmartFolder.Ext);
+        CopyDir(Path.Combine(dir, "Icones"), SmartFolder.IconDir);
+        CopyDir(Path.Combine(dir, "Pastas-Atalhos"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "*.lnk");
         return $"Backup restaurado.\n\n• Layout: {layout}\n• Atalhos: {shortcuts}\n• Pastas inteligentes: {smart}\n\nFeche e abra o DesktopFolders para carregar o layout restaurado.";
     }
 }
