@@ -372,6 +372,7 @@ public partial class MainWindow : Window
                     System.IO.Path.GetFileNameWithoutExtension(path) + $" ({i})" + ext);
             File.Move(path, dest);
             original = path;
+            ShellNotify(0x00000004 /*SHCNE_DELETE*/, path);   // o ícone some da Área de Trabalho na hora
             return dest;
         }
         catch
@@ -396,9 +397,36 @@ public partial class MainWindow : Window
         try
         {
             if (e.OriginalPath != null && e.Path != null && File.Exists(e.Path) && !File.Exists(e.OriginalPath))
+            {
                 File.Move(e.Path, e.OriginalPath);
+                ShellNotify(0x00000002 /*SHCNE_CREATE*/, e.OriginalPath);
+            }
         }
         catch { /* mantém na pasta do app */ }
+    }
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern void SHChangeNotify(int evt, uint flags, string? a, string? b);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+
+    /// <summary>
+    /// Faz o ícone sumir/aparecer na Área de Trabalho na hora. Com a Área de Trabalho no OneDrive o Explorador só
+    /// percebe a mudança depois de ~4 s (o aviso SHChangeNotify não adianta); "Atualizar" (F5) resolve na hora.
+    /// </summary>
+    private static void ShellNotify(int evt, string path)
+    {
+        try
+        {
+            const uint PATHW_FLUSHNOWAIT = 0x0005 | 0x3000;   // SHCNF_PATHW | SHCNF_FLUSHNOWAIT
+            SHChangeNotify(evt, PATHW_FLUSHNOWAIT, path, null);
+            if (IsOnDesktop(path))
+            {
+                IntPtr dv = Native.FindDefView();
+                if (dv != IntPtr.Zero) PostMessage(dv, 0x0111 /*WM_COMMAND*/, (IntPtr)0x7103 /*Atualizar*/, IntPtr.Zero);
+            }
+        }
+        catch { }
     }
 
     // ===================== Grade da área de trabalho =====================
@@ -681,11 +709,13 @@ public partial class MainWindow : Window
             entries.Add(en);
         }
         string file = SmartFolder.CreateNew(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), name.Trim(), data);
+        ShellNotify(0x00000002 /*SHCNE_CREATE*/, file);   // a pasta nova aparece na hora (e dá para posicioná-la)
         if (targetPos != null) PlaceDesktopIcon(System.IO.Path.GetFileNameWithoutExtension(file), targetPos.Value);
 
         ShowUndoToast($"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada com {all.Count} atalhos.", () =>
         {
             SmartFolder.Delete(file);   // apaga o atalho da pasta, os dados e o ícone
+            ShellNotify(0x00000004 /*SHCNE_DELETE*/, file);
             foreach (var en in entries) RestoreOriginal(en);   // os atalhos voltam à Área de Trabalho
         });
     }

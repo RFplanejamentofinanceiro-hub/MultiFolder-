@@ -41,11 +41,15 @@
             <TextBlock x:Name="FolderTitle" Foreground="{DynamicResource TextMain}" FontFamily="Segoe UI" FontSize="22"
                        FontWeight="SemiBold" TextAlignment="Center" />
             <Border x:Name="AccentBar" Height="3" Width="56" CornerRadius="2" Margin="0,8,0,14" HorizontalAlignment="Center" />
-            <ItemsControl x:Name="List" ItemTemplate="{StaticResource Tile}" MinHeight="104">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-            </ItemsControl>
+            <!-- muitos apps: rola dentro do painel (altura máxima ajustada à tela em SourceInitialized) -->
+            <ScrollViewer x:Name="ListScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalOnly">
+                <ItemsControl x:Name="List" ItemTemplate="{StaticResource Tile}" MinHeight="104">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
             <TextBlock x:Name="EmptyHint" Foreground="{DynamicResource TextDim}" FontFamily="Segoe UI" FontSize="13"
                        TextAlignment="Center" Margin="0,0,0,8" TextWrapping="Wrap"
                        Text="Pasta vazia. Arraste programas ou atalhos para cá, ou use o botão abaixo." />

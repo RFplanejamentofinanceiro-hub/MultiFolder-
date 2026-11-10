@@ -71,6 +71,8 @@ public partial class FolderWindow : Window
             Top = scr.Bounds.Y / dpi.DpiScaleY;
             Width = scr.Bounds.Width / dpi.DpiScaleX;
             Height = scr.Bounds.Height / dpi.DpiScaleY;
+            // espaço para título, botões e margens; o resto é da lista (com rolagem)
+            ListScroll.MaxHeight = Math.Max(116, Height - 320);
         };
         Loaded += (_, _) => BringToFront();
     }

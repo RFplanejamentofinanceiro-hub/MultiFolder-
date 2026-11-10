@@ -58,9 +58,10 @@ DesktopFolders.exe --remover-miniatura
 1. **Criar:** arraste um atalho e **solte sobre outro** na Área de Trabalho (pede o nome), ou botão direito no
    vazio da Área de Trabalho → *Mostrar mais opções → Nova pasta inteligente*, ou ícone da bandeja →
    *Nova pasta inteligente...*.
-2. **Abrir:** duplo clique.
-3. **Adicionar apps:** solte um atalho sobre a pasta, arraste atalhos para o popup, use **+ Adicionar programa**,
-   ou clique direito no atalho → *Adicionar à pasta inteligente...*.
+2. **Abrir:** duplo clique. Com o DesktopFolders aberto na bandeja, a pasta abre na hora (menos de 1 s).
+   Sem limite de apps por pasta: com muitos, o popup ganha barra de rolagem.
+3. **Adicionar apps:** solte um atalho sobre a pasta, arraste atalhos (ou apps do Menu Iniciar, inclusive da
+   Store) para o popup, use **+ Adicionar programa**, ou clique direito no atalho → *Adicionar à pasta inteligente...*.
 4. **Reordenar:** arraste um app sobre outro dentro do popup.
 5. **Tirar:** clique direito no app → *Remover da pasta* (o atalho volta à Área de Trabalho).
 6. **Aparência:** botão de tema e bolinhas de cor no rodapé do popup.
