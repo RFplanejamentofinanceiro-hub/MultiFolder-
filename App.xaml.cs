@@ -12,11 +12,33 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        DesktopDragWatcher.Log($"processo {Environment.ProcessId} iniciou: args=[{string.Join(" ", e.Args)}]");
         base.OnStartup(e);
 
         // Comandos de manutenção
         if (e.Args.Contains("--registrar")) { SmartFolder.Register(); Shutdown(); return; }
         if (e.Args.Contains("--remover-registro")) { SmartFolder.Unregister(); Shutdown(); return; }
+        int st = Array.IndexOf(e.Args, "--testar-iniciar");   // diagnóstico: --testar-iniciar <saida.txt> <pastaDestino> <nome1> [nome2...]
+        if (st >= 0 && st + 3 < e.Args.Length)
+        {
+            string outFile = e.Args[st + 1], dir = e.Args[st + 2];
+            var names = e.Args[(st + 3)..];
+            var lines = new System.Collections.Generic.List<string>();
+            try
+            {
+                foreach (var p in ShellDrop.SelfTest(names, dir))
+                {
+                    string extra = "";
+                    if (p.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) extra = " | ícone: " + (Native.GetIcon(p) != null ? "ok" : "nenhum");
+                    lines.Add(p + extra);
+                }
+            }
+            catch (Exception ex) { lines.Add("ERRO: " + ex); }
+            System.IO.File.WriteAllLines(outFile, lines);
+            Shutdown();
+            return;
+        }
+
         int ui = Array.IndexOf(e.Args, "--listar-icones");   // diagnóstico: ícones da Área de Trabalho (nome e posição)
         if (ui >= 0 && ui + 1 < e.Args.Length)
         {
@@ -151,7 +173,14 @@ public partial class App : Application
         {
             // os demais argumentos são arquivos soltos sobre o ícone da pasta
             var dropped = e.Args.Where(a => !a.StartsWith("--") && a != file).ToArray();
-            var w = new FolderWindow(file, dropped);
+            // o app da bandeja já abriu esta pasta pelo duplo clique: não abre outra janela
+            if (!FolderWindow.TryClaim(file, out var claim))
+            {
+                DesktopDragWatcher.Log("popup: já aberta pelo app da bandeja; este processo sai");
+                Shutdown();
+                return;
+            }
+            var w = new FolderWindow(file, dropped, claim);
             MainWindow = w;
             w.Show();
             return;

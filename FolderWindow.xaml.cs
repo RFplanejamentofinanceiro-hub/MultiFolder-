@@ -17,12 +17,43 @@ public partial class FolderWindow : Window
     private readonly string _title;
     private readonly Layout _data;
 
+    private System.Threading.Mutex? _claim;
+
+    /// <summary>Garante uma janela só por pasta (entre processos). Falso se a pasta já está aberta.</summary>
+    public static bool TryClaim(string file, out System.Threading.Mutex? claim)
+    {
+        string id = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(
+            System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(file).ToLowerInvariant())));
+        claim = new System.Threading.Mutex(true, "DesktopFolders.Popup." + id, out bool created);
+        if (created) return true;
+        claim.Dispose();
+        claim = null;
+        return false;
+    }
+
+    public FolderWindow(string file, string[]? dropped, System.Threading.Mutex? claim) : this(file, dropped)
+    {
+        _claim = claim;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        try { _claim?.ReleaseMutex(); } catch { }
+        _claim?.Dispose();
+        _claim = null;
+    }
+
     public FolderWindow(string file, string[]? dropped = null)
     {
+        DesktopDragWatcher.Log($"popup: iniciando ({file})");
         InitializeComponent();
         _file = file;
         _data = SmartFolder.Load(file);
+        DesktopDragWatcher.Log("popup: dados lidos");
         _title = SmartFolder.DisplayName(file, _data);   // nome do atalho na Área de Trabalho
+        DesktopDragWatcher.Log("popup: nome obtido");
+        ContentRendered += (_, _) => DesktopDragWatcher.Log($"popup: na tela em {Left},{Top} {Width}x{Height}");
         FolderTitle.Text = _title;
         List.ItemsSource = _data.Items;
         BuildDots();
@@ -41,7 +72,29 @@ public partial class FolderWindow : Window
             Width = scr.Bounds.Width / dpi.DpiScaleX;
             Height = scr.Bounds.Height / dpi.DpiScaleY;
         };
-        Loaded += (_, _) => Activate();
+        Loaded += (_, _) => BringToFront();
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
+
+    /// <summary>Traz o popup para a frente com foco de teclado (Esc fecha), mesmo aberto pelo app da bandeja.</summary>
+    private void BringToFront()
+    {
+        try
+        {
+            IntPtr me = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            uint fg = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero), cur = GetCurrentThreadId();
+            bool attached = fg != 0 && fg != cur && AttachThreadInput(cur, fg, true);
+            SetForegroundWindow(me);
+            Activate();
+            if (attached) AttachThreadInput(cur, fg, false);
+            Focus();
+        }
+        catch { Activate(); }
     }
 
     // ===================== Tema e cor da pasta =====================
@@ -181,7 +234,7 @@ public partial class FolderWindow : Window
             int from = _data.Items.IndexOf(src), to = _data.Items.IndexOf(target);
             if (from >= 0 && to >= 0 && from != to) _data.Items.Move(from, to);
         }
-        else if (e.Data.GetData(DataFormats.FileDrop) is string[] files) AddPaths(files);
+        else if (ShellDrop.HasItems(e.Data)) AddPaths(ShellDrop.GetPaths(e.Data, MainWindow.ShortcutsDir));
     }
     private void Menu_Open(object s, RoutedEventArgs e) { if (EntryOf(s) is { } en) Launch(en); }
 
@@ -229,7 +282,19 @@ public partial class FolderWindow : Window
 
     private void Win_Drop(object s, DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] files) AddPaths(files);
+        e.Handled = true;
+        if (e.Data.GetData("entry") is Entry) return;
+        if (ShellDrop.HasItems(e.Data)) AddPaths(ShellDrop.GetPaths(e.Data, MainWindow.ShortcutsDir));
+    }
+
+    // aceita arrastar do Explorador, da Área de Trabalho e do Menu Iniciar (copiar/atalho, nunca mover)
+    private void Win_DragOver(object s, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent("entry")) return;
+        e.Effects = ShellDrop.HasItems(e.Data)
+            ? ((e.AllowedEffects & DragDropEffects.Link) != 0 ? DragDropEffects.Link : DragDropEffects.Copy)
+            : DragDropEffects.None;
+        e.Handled = true;
     }
 
     private void AddPaths(string[] paths)

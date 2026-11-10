@@ -271,6 +271,14 @@ internal sealed class DesktopDragWatcher
     private int _lastOver = -2;
     private string? _catcherName;
     private DateTime _hideAt = DateTime.MinValue;
+    [DllImport("user32.dll")] private static extern uint GetDoubleClickTime();
+    private int _lastClickIdx = -1;
+    private DateTime _lastClickAt = DateTime.MinValue;
+    private PT _lastClickPt;
+
+    /// <summary>Duplo clique em um ícone da Área de Trabalho (nome do ícone).</summary>
+    public event Action<string>? IconDoubleClicked;
+
     private string? _lastDropKey;
     private DateTime _lastDropAt = DateTime.MinValue;
 
@@ -330,7 +338,7 @@ internal sealed class DesktopDragWatcher
         // esconde a janela receptora depois de um tempo do soltar (dá tempo do "soltar" chegar)
         if (_hideAt != DateTime.MinValue && DateTime.UtcNow - _hideAt > TimeSpan.FromMilliseconds(400)) { _hideAt = DateTime.MinValue; HideCatcher(); }
 
-        if (!Enabled || !down)
+        if (!down)
         {
             if (_state == State.Dragging && _catcher.IsVisible && _hideAt == DateTime.MinValue) _hideAt = DateTime.UtcNow; // soltou: espera o drop
             _state = State.Idle;
@@ -344,7 +352,18 @@ internal sealed class DesktopDragWatcher
                 int idx = _list!.HitTestCursor(out PT p);
                 bool top = DesktopList.DesktopIsOnTopAt(p, out string cls);
                 Log($"botão pressionado em ({p.x},{p.y}) ícone={idx} janelaNoTopo='{cls}' ehDesktop={top}");
-                if (idx >= 0 && top) { _state = State.Pressed; _press = p; _pressIdx = idx; }
+                // duplo clique em um ícone: avisa (a pasta inteligente abre aqui mesmo, sem esperar o Explorador)
+                if (idx >= 0 && top && idx == _lastClickIdx
+                    && (DateTime.UtcNow - _lastClickAt).TotalMilliseconds <= GetDoubleClickTime()
+                    && Math.Abs(p.x - _lastClickPt.x) <= 8 && Math.Abs(p.y - _lastClickPt.y) <= 8)
+                {
+                    _lastClickIdx = -1;
+                    string? name = _list.ItemText(idx);
+                    Log($"duplo clique no ícone {idx} '{name}'");
+                    if (!string.IsNullOrEmpty(name)) _owner.Dispatcher.BeginInvoke(new Action(() => IconDoubleClicked?.Invoke(name)));
+                }
+                else { _lastClickIdx = idx; _lastClickAt = DateTime.UtcNow; _lastClickPt = p; }
+                if (idx >= 0 && top && Enabled) { _state = State.Pressed; _press = p; _pressIdx = idx; }
                 else _state = State.Ignore;
                 break;
 

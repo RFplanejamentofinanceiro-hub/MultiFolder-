@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:DesktopFolders"
         Title="Pasta inteligente" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="#B0000000" ShowInTaskbar="False" Topmost="True"
-        AllowDrop="True" Drop="Win_Drop" KeyDown="Window_KeyDown" MouseLeftButtonDown="Bg_Click">
+        AllowDrop="True" Drop="Win_Drop" DragOver="Win_DragOver" DragEnter="Win_DragOver" KeyDown="Window_KeyDown" MouseLeftButtonDown="Bg_Click">
 
     <Window.Resources>
         <!-- Cores do tema (trocadas em tempo de execução por ApplyTheme) -->

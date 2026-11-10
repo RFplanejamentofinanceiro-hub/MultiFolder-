@@ -54,6 +54,7 @@ public partial class MainWindow : Window
             SetHideNative(_layout.HideNative, save: false);
             _dragWatcher = new DesktopDragWatcher(this) { Enabled = _layout.DragGroup };
             _dragWatcher.GroupRequested += OnDesktopGroup;
+            _dragWatcher.IconDoubleClicked += OnDesktopDoubleClick;
             _dragWatcher.Start();
 
             // pastas .0pasta antigas na Área de Trabalho viram atalhos (que o Windows 11 abre por duplo clique)
@@ -343,7 +344,7 @@ public partial class MainWindow : Window
         return added;
     }
 
-    private static readonly string ShortcutsDir = System.IO.Path.Combine(
+    internal static readonly string ShortcutsDir =System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DesktopFolders", "Atalhos");
 
     private static bool IsOnDesktop(string path)
@@ -591,6 +592,23 @@ public partial class MainWindow : Window
 
     // ===================== Soltar ícone sobre ícone na Área de Trabalho do Windows =====================
     private DesktopDragWatcher? _dragWatcher;
+
+    /// <summary>
+    /// Duplo clique numa pasta inteligente da Área de Trabalho: abre o popup aqui mesmo, na hora.
+    /// (O Explorador às vezes não inicia o programa pelo duplo clique; se iniciar, a 2ª janela percebe e fecha.)
+    /// </summary>
+    private void OnDesktopDoubleClick(string name)
+    {
+        try
+        {
+            string? item = ResolveDesktopItem(name);
+            if (item == null || !SmartFolder.TryGetDataFile(item, out string data)) return;
+            if (!FolderWindow.TryClaim(data, out var claim)) return;   // já está aberta
+            var w = new FolderWindow(data, null, claim);
+            w.Show();
+        }
+        catch (Exception ex) { DesktopDragWatcher.Log("duplo clique: erro " + ex.Message); }
+    }
 
     private static string? ResolveDesktopItem(string name)
     {
