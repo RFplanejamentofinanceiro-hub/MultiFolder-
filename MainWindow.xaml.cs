@@ -615,8 +615,16 @@ public partial class MainWindow : Window
     private void OnDesktopGroup(string[] dragged, string targetName, PT? targetPos)
     {
         string? target = ResolveDesktopItem(targetName);
-        var items = dragged.Where(p => !string.Equals(p, target, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (target == null || items.Count == 0) return;
+        DesktopDragWatcher.Log($"soltar: alvo '{targetName}' -> '{target}'; arrastados={string.Join(" | ", dragged)}");
+        // só o que ainda existe, sem repetição (um atalho já movido não pode entrar de novo)
+        var items = dragged.Where(File.Exists)
+            .Where(p => !string.Equals(p, target, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (target == null || items.Count == 0)
+        {
+            if (target == null) ShowUndoToast($"Não encontrei \"{targetName}\" na Área de Trabalho. Tente de novo.", null);
+            return;
+        }
 
         // alvo é uma pasta inteligente que já existe: adiciona os atalhos a ela
         if (SmartFolder.TryGetDataFile(target, out string targetData))
@@ -681,6 +689,8 @@ public partial class MainWindow : Window
         var added = new List<Entry>();
         foreach (var p in items)
         {
+            // já está na pasta (mesmo atalho de origem): não duplica
+            if (data.Items.Any(x => string.Equals(x.OriginalPath ?? x.Path, p, StringComparison.OrdinalIgnoreCase))) continue;
             string moved = AdoptFromDesktop(p, out string? original);   // o atalho sai da Área de Trabalho
             var en = new Entry { Name = System.IO.Path.GetFileNameWithoutExtension(p), Path = moved, OriginalPath = original };
             data.Items.Add(en);

@@ -271,6 +271,8 @@ internal sealed class DesktopDragWatcher
     private int _lastOver = -2;
     private string? _catcherName;
     private DateTime _hideAt = DateTime.MinValue;
+    private string? _lastDropKey;
+    private DateTime _lastDropAt = DateTime.MinValue;
 
     /// <summary>(arquivos arrastados, nome do ícone alvo na Área de Trabalho, posição do ícone alvo)</summary>
     public event Action<string[], string, PT?>? GroupRequested;
@@ -299,6 +301,10 @@ internal sealed class DesktopDragWatcher
         {
             string? target = _catcherName;
             if (target == null) return;
+            // o mesmo "soltar" pode chegar duas vezes: ignora a repetição (senão o atalho entra duplicado na pasta)
+            string key = target + "|" + string.Join("|", files);
+            if (key == _lastDropKey && DateTime.UtcNow - _lastDropAt < TimeSpan.FromSeconds(3)) { Log("soltar repetido ignorado"); return; }
+            _lastDropKey = key; _lastDropAt = DateTime.UtcNow;
             PT? pos = null;
             try { if (_list != null && _catcherIdx >= 0) pos = _list.GetItemPosition(_catcherIdx); } catch { }
             // fora da chamada OLE do Explorador: abrir diálogos aqui travaria a Área de Trabalho
