@@ -173,6 +173,26 @@ internal sealed class DesktopList : IDisposable
 
     public int Count => (int)Send(0x1004, IntPtr.Zero, IntPtr.Zero);
 
+    /// <summary>Posição do ícone na lista (coordenadas da própria lista do Explorador).</summary>
+    public PT? GetItemPosition(int idx)
+    {
+        Write(OffRect, new byte[16]);
+        if (Send(0x1010 /*LVM_GETITEMPOSITION*/, (IntPtr)idx, _mem + OffRect) == IntPtr.Zero) return null;
+        var r = Read(OffRect, 8);
+        return new PT { x = BitConverter.ToInt32(r, 0), y = BitConverter.ToInt32(r, 4) };
+    }
+
+    public void SetItemPosition(int idx, int x, int y) =>
+        Send(0x100F /*LVM_SETITEMPOSITION*/, (IntPtr)idx, (IntPtr)((y << 16) | (x & 0xFFFF)));
+
+    public int FindByText(string text)
+    {
+        int n = Count;
+        for (int i = 0; i < n; i++)
+            if (string.Equals(ItemText(i), text, StringComparison.OrdinalIgnoreCase)) return i;
+        return -1;
+    }
+
     public void Dispose()
     {
         try { VirtualFreeEx(_proc, _mem, UIntPtr.Zero, 0x8000); CloseHandle(_proc); } catch { }
@@ -252,8 +272,8 @@ internal sealed class DesktopDragWatcher
     private string? _catcherName;
     private DateTime _hideAt = DateTime.MinValue;
 
-    /// <summary>(arquivos arrastados, nome do ícone alvo na Área de Trabalho)</summary>
-    public event Action<string[], string>? GroupRequested;
+    /// <summary>(arquivos arrastados, nome do ícone alvo na Área de Trabalho, posição do ícone alvo)</summary>
+    public event Action<string[], string, PT?>? GroupRequested;
 
     public bool Enabled { get; set; } = true;
 
@@ -279,8 +299,10 @@ internal sealed class DesktopDragWatcher
         {
             string? target = _catcherName;
             if (target == null) return;
+            PT? pos = null;
+            try { if (_list != null && _catcherIdx >= 0) pos = _list.GetItemPosition(_catcherIdx); } catch { }
             // fora da chamada OLE do Explorador: abrir diálogos aqui travaria a Área de Trabalho
-            _owner.Dispatcher.BeginInvoke(new Action(() => GroupRequested?.Invoke(files, target)));
+            _owner.Dispatcher.BeginInvoke(new Action(() => GroupRequested?.Invoke(files, target, pos)));
             _hideAt = DateTime.UtcNow;   // some logo depois do soltar
         };
     }

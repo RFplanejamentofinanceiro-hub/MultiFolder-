@@ -610,11 +610,18 @@ public partial class MainWindow : Window
     }
 
     /// <summary>O usuário soltou ícone(s) sobre outro ícone da Área de Trabalho: cria a pasta inteligente e pede o nome.</summary>
-    private void OnDesktopGroup(string[] dragged, string targetName)
+    private void OnDesktopGroup(string[] dragged, string targetName, PT? targetPos)
     {
         string? target = ResolveDesktopItem(targetName);
         var items = dragged.Where(p => !string.Equals(p, target, StringComparison.OrdinalIgnoreCase)).ToList();
         if (target == null || items.Count == 0) return;
+
+        // alvo é uma pasta inteligente que já existe: adiciona os atalhos a ela
+        if (string.Equals(System.IO.Path.GetExtension(target), SmartFolder.Ext, StringComparison.OrdinalIgnoreCase))
+        {
+            AddToExistingSmartFolder(target, items);
+            return;
+        }
 
         var all = new List<string> { target };
         all.AddRange(items);
@@ -641,12 +648,75 @@ public partial class MainWindow : Window
             entries.Add(en);
         }
         string file = SmartFolder.CreateNew(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), name.Trim(), data);
+        if (targetPos != null) PlaceDesktopIcon(System.IO.Path.GetFileNameWithoutExtension(file), targetPos.Value);
 
         ShowUndoToast($"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada com {all.Count} atalhos.", () =>
         {
             try { File.Delete(file); } catch { }
             foreach (var en in entries) RestoreOriginal(en);   // os atalhos voltam à Área de Trabalho
         });
+    }
+
+    /// <summary>Adiciona atalhos (soltos sobre o ícone) a uma pasta inteligente que já existe, com Desfazer.</summary>
+    private void AddToExistingSmartFolder(string folderFile, List<string> items)
+    {
+        if (items.Any(p => !IsShortcutFile(p)))
+        {
+            ShowUndoToast("Só atalhos (.lnk/.url) podem ser adicionados a uma pasta inteligente.", null);
+            return;
+        }
+        var data = SmartFolder.Load(folderFile);
+        var added = new List<Entry>();
+        foreach (var p in items)
+        {
+            string moved = AdoptFromDesktop(p, out string? original);   // o atalho sai da Área de Trabalho
+            var en = new Entry { Name = System.IO.Path.GetFileNameWithoutExtension(p), Path = moved, OriginalPath = original };
+            data.Items.Add(en);
+            added.Add(en);
+        }
+        SmartFolder.Save(folderFile, data);
+        string title = System.IO.Path.GetFileNameWithoutExtension(folderFile);
+        DesktopDragWatcher.Log($"agrupar: adicionados {added.Count} à pasta existente '{title}'");
+
+        ShowUndoToast($"{added.Count} atalho(s) adicionado(s) a \"{title}\".", () =>
+        {
+            var again = SmartFolder.Load(folderFile);
+            foreach (var en in added)
+            {
+                var m = again.Items.FirstOrDefault(x => x.Path == en.Path);
+                if (m != null) again.Items.Remove(m);
+                RestoreOriginal(en);   // o atalho volta à Área de Trabalho
+            }
+            SmartFolder.Save(folderFile, again);
+        });
+    }
+
+    /// <summary>Move o ícone recém-criado para a posição do ícone alvo (o Explorador demora um instante para listá-lo).</summary>
+    private void PlaceDesktopIcon(string displayName, PT pos)
+    {
+        int tries = 0;
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        timer.Tick += (_, _) =>
+        {
+            tries++;
+            try
+            {
+                using var dl = DesktopList.Open();
+                // o Explorador pode listar o nome com ou sem a extensão escondida
+                int i = dl?.FindByText(displayName) ?? -1;
+                if (dl != null && i < 0) i = dl.FindByText(displayName + SmartFolder.Ext);
+                if (dl != null && i >= 0)
+                {
+                    dl.SetItemPosition(i, pos.x, pos.y);
+                    DesktopDragWatcher.Log($"novo ícone '{displayName}' posicionado em ({pos.x},{pos.y})");
+                    timer.Stop();
+                    return;
+                }
+            }
+            catch { }
+            if (tries >= 12) timer.Stop();
+        };
+        timer.Start();
     }
 
     /// <summary>Aviso discreto no canto da tela com o botão Desfazer (some sozinho em 10 segundos).</summary>

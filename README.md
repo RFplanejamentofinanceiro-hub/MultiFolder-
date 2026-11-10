@@ -18,7 +18,9 @@ expande mostrando os apps para abrir, como nas pastas do iPhone e do macOS. Grá
   Windows (Abrir local do arquivo, Executar como administrador, Propriedades...) com as opções da pasta no final.
 - **Soltar um ícone sobre outro na Área de Trabalho.** Arraste um atalho e solte em cima de outro **ícone
   da Área de Trabalho do Windows**: o programa pede o nome e cria a pasta inteligente com os dois (aceita
-  vários atalhos selecionados). Um aviso com **Desfazer** aparece por alguns segundos. Fora dos ícones nada muda:
+  vários atalhos selecionados). A pasta nova aparece **no lugar do ícone alvo**. Soltar um atalho sobre uma
+  **pasta inteligente que já existe** adiciona o atalho a ela. Um aviso com **Desfazer** aparece por alguns
+  segundos. Fora dos ícones nada muda:
   o Explorador continua movendo os ícones normalmente. Funciona com o DesktopFolders aberto (ícone na bandeja;
   ligue *Iniciar com o Windows* para deixar sempre ativo). Só atalhos `.lnk`/`.url` são agrupados.
 - **Adicionar de qualquer lugar.** Clique direito em um ou vários atalhos/programas →
