@@ -43,6 +43,11 @@ expande mostrando os apps para abrir, como nas pastas do iPhone e do macOS. Grá
 > (*Mostrar mais opções*), a Pasta inteligente aparece em *Novo*. O menu **moderno** mantém uma lista própria que
 > o programa não consegue alterar, e a entrada pode não aparecer lá mesmo após o passo de administrador; por isso
 > existe também o item **Nova pasta inteligente** no menu clássico e na bandeja.
+>
+> **Quer o clássico sempre?** No ícone da bandeja, ligue *Usar o menu de botão direito clássico* e reinicie o
+> Explorador de Arquivos. É uma configuração só do seu usuário, sem administrador, e se desfaz desligando o
+> mesmo item. Pelo terminal: `reg add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /f /ve`
+> liga e `reg delete "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" /f` desliga.
 
 ### Por que o passo de administrador?
 

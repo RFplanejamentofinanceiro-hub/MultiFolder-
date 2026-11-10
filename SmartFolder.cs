@@ -184,6 +184,7 @@ public static class SmartFolder
         string file = Path.Combine(dir, safe + Ext);
         for (int i = 2; File.Exists(file); i++) file = Path.Combine(dir, $"{safe} ({i}){Ext}");
         Save(file, data ?? new Layout());
+        NotifyChanged(file, created: true);   // o ícone já nasce com a miniatura dos apps
         return file;
     }
 
@@ -200,7 +201,23 @@ public static class SmartFolder
 
     public static void Save(string file, Layout data)
     {
-        try { File.WriteAllText(file, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true })); }
+        try
+        {
+            File.WriteAllText(file, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
+            NotifyChanged(file, created: false);
+        }
         catch { }
+    }
+
+    /// <summary>Avisa o Explorador que o arquivo mudou, para ele refazer a miniatura (ícone com os apps) na hora.</summary>
+    public static void NotifyChanged(string file, bool created)
+    {
+        IntPtr p = Marshal.StringToHGlobalUni(file);
+        try
+        {
+            if (created) SHChangeNotify(0x00000002 /*SHCNE_CREATE*/, 0x0005 /*SHCNF_PATHW*/, p, IntPtr.Zero);
+            SHChangeNotify(0x00002000 /*SHCNE_UPDATEITEM*/, 0x0005, p, IntPtr.Zero);
+        }
+        finally { Marshal.FreeHGlobal(p); }
     }
 }

@@ -32,6 +32,38 @@ public static class Startup
     }
 }
 
+/// <summary>
+/// Interruptor do menu de botão direito CLÁSSICO do Windows 11 (somente usuário atual, sem administrador, reversível).
+/// No menu clássico, "Novo → Pasta inteligente" aparece direto. Vale depois de reiniciar o Explorador de Arquivos.
+/// </summary>
+public static class ClassicMenu
+{
+    private const string KeyPath = @"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}";
+
+    public static bool IsEnabled
+    {
+        get
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(KeyPath + @"\InprocServer32");
+            return k != null;
+        }
+    }
+
+    public static void Set(bool on)
+    {
+        try
+        {
+            if (on)
+            {
+                using var k = Registry.CurrentUser.CreateSubKey(KeyPath + @"\InprocServer32");
+                k.SetValue("", "");   // valor padrão vazio
+            }
+            else Registry.CurrentUser.DeleteSubKeyTree(KeyPath, false);
+        }
+        catch { }
+    }
+}
+
 /// <summary>Backup/restauro para a pasta DesktopFolders-Backup do OneDrive.</summary>
 public static class Backup
 {

@@ -126,6 +126,20 @@ public partial class MainWindow : Window
         };
         startup.CheckedChanged += (_, _) => Startup.Set(startup.Checked);
         menu.Items.Add(startup);
+        var classic = new System.Windows.Forms.ToolStripMenuItem("Usar o menu de botão direito clássico (Novo → Pasta inteligente)")
+        {
+            CheckOnClick = true,
+            Checked = ClassicMenu.IsEnabled
+        };
+        classic.CheckedChanged += (_, _) =>
+        {
+            ClassicMenu.Set(classic.Checked);
+            MessageBox.Show(
+                (classic.Checked ? "Menu clássico ativado." : "Menu clássico desativado (volta o menu moderno).") +
+                "\n\nPara valer, reinicie o Explorador de Arquivos: Gerenciador de Tarefas → Explorador do Windows → Reiniciar.",
+                "DesktopFolders", MessageBoxButton.OK, MessageBoxImage.Information);
+        };
+        menu.Items.Add(classic);
         var autoBackup = new System.Windows.Forms.ToolStripMenuItem("Backup automático ao sair")
         {
             CheckOnClick = true,
@@ -543,10 +557,56 @@ public partial class MainWindow : Window
             var data = new Layout();
             data.Items.Add(target);
             data.Items.Add(src);
-            SmartFolder.CreateNew(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), name.Trim(), data);
+            string file = SmartFolder.CreateNew(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), name.Trim(), data);
             RemoveFrom(src);
             Items.Remove(target);   // os dois passam a viver dentro do arquivo da pasta
+
+            // oferece desfazer por alguns segundos: apaga a pasta e devolve os dois à camada, nos mesmos lugares
+            ShowUndoToast($"Pasta inteligente \"{System.IO.Path.GetFileNameWithoutExtension(file)}\" criada na Área de Trabalho.", () =>
+            {
+                try { File.Delete(file); } catch { }
+                Items.Add(target);
+                Items.Add(src);
+            });
         }
+    }
+
+    /// <summary>Aviso discreto no canto da tela com o botão Desfazer (some sozinho em 10 segundos).</summary>
+    private void ShowUndoToast(string text, Action undo)
+    {
+        var toast = new Window
+        {
+            WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
+            ShowInTaskbar = false, Topmost = true, ShowActivated = false, ResizeMode = ResizeMode.NoResize,
+            SizeToContent = SizeToContent.WidthAndHeight
+        };
+        var undoBtn = new Button { Content = "Desfazer", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock
+        {
+            Text = text, Foreground = System.Windows.Media.Brushes.White, FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
+            FontSize = 13, MaxWidth = 300, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(label);
+        row.Children.Add(undoBtn);
+        toast.Content = new Border
+        {
+            CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 12, 16, 12), Child = row,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0xF2, 0x1E, 0x22, 0x30)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x33, 255, 255, 255)),
+            BorderThickness = new Thickness(1)
+        };
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        timer.Tick += (_, _) => { timer.Stop(); toast.Close(); };
+        undoBtn.Click += (_, _) => { timer.Stop(); toast.Close(); undo(); };
+        toast.Loaded += (_, _) =>
+        {
+            var wa = SystemParameters.WorkArea;
+            toast.Left = wa.Right - toast.ActualWidth - 20;
+            toast.Top = wa.Bottom - toast.ActualHeight - 20;
+            timer.Start();
+        };
+        toast.Show();
     }
 
     private void Panel_Drop(object s, DragEventArgs e)
