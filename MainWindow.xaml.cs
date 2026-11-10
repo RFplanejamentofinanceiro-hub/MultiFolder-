@@ -535,15 +535,17 @@ public partial class MainWindow : Window
         }
         else
         {
-            // programa sobre programa: cria uma pasta com os dois
+            // programa sobre programa: cria uma PASTA INTELIGENTE (arquivo nativo na Área de Trabalho)
+            // com os dois e pede o nome. Se cancelar, nada muda.
+            var name = InputDialog.Ask(this, "Nova pasta inteligente", "Pasta inteligente");
+            if (string.IsNullOrWhiteSpace(name)) return;
+            SmartFolder.Register();
+            var data = new Layout();
+            data.Items.Add(target);
+            data.Items.Add(src);
+            SmartFolder.CreateNew(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), name.Trim(), data);
             RemoveFrom(src);
-            int idx = Items.IndexOf(target);
-            Items.Remove(target);
-            var folder = new Entry { Name = "Pasta", X = target.X, Y = target.Y }; // fica onde o alvo estava
-            HookFolder(folder);
-            folder.Items.Add(target);
-            folder.Items.Add(src);
-            Items.Insert(Math.Min(idx, Items.Count), folder);
+            Items.Remove(target);   // os dois passam a viver dentro do arquivo da pasta
         }
     }
 

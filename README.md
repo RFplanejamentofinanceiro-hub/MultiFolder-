@@ -10,7 +10,8 @@ expande mostrando os apps para abrir, como nas pastas do iPhone e do macOS. Grá
 ## O que faz
 
 - **Pasta inteligente nativa.** Um item do próprio Windows: clique direito na Área de Trabalho →
-  **Novo → Pasta inteligente**. Ela é um arquivo (`.0pasta`, extensão escondida) que guarda a lista de
+  **Mostrar mais opções → Nova pasta inteligente** (ou **Novo → Pasta inteligente**, veja a nota abaixo).
+  Ela é um arquivo (`.0pasta`, extensão escondida) que guarda a lista de
   programas. Você move, renomeia (F2), copia e apaga pelo Explorador, **e ela continua funcionando com o
   programa fechado**. Duplo clique abre o popup.
 - **Menu nativo do Windows nos apps.** Clique direito num app dentro da pasta mostra o menu de verdade do
@@ -38,6 +39,11 @@ expande mostrando os apps para abrir, como nas pastas do iPhone e do macOS. Grá
 > O instalador **não é assinado digitalmente**, então o Microsoft Defender SmartScreen pode avisar na primeira
 > execução: clique em *Mais informações → Executar assim mesmo*. O código-fonte está aqui para conferir.
 
+> **Nota sobre o menu "Novo" do Windows 11.** O Windows 11 tem dois menus de botão direito. No **clássico**
+> (*Mostrar mais opções*), a Pasta inteligente aparece em *Novo*. O menu **moderno** mantém uma lista própria que
+> o programa não consegue alterar, e a entrada pode não aparecer lá mesmo após o passo de administrador; por isso
+> existe também o item **Nova pasta inteligente** no menu clássico e na bandeja.
+
 ### Por que o passo de administrador?
 
 O menu **Novo** e as **miniaturas** do Windows 11 só consideram tipos de arquivo registrados para a máquina
@@ -47,8 +53,9 @@ execute `Instalar-miniatura.cmd`, na pasta de instalação; para desativar, `Ins
 
 ## Como usar
 
-1. **Criar:** botão direito na Área de Trabalho → *Novo → Pasta inteligente* (ou ícone da bandeja →
-   *Nova pasta inteligente...*). Dê o nome (F2).
+1. **Criar:** botão direito na Área de Trabalho → *Mostrar mais opções → Nova pasta inteligente* (pede o nome),
+   ou ícone da bandeja → *Nova pasta inteligente...*, ou **arraste um atalho sobre outro** na camada de ícones
+   (cria a pasta com os dois e pede o nome).
 2. **Abrir:** duplo clique.
 3. **Adicionar apps:** arraste atalhos/programas para o popup, use **+ Adicionar programa**, ou clique direito
    no atalho → *Adicionar à pasta inteligente...*.

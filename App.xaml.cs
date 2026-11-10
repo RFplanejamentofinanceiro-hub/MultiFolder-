@@ -17,6 +17,14 @@ public partial class App : Application
         // Comandos de manutenção
         if (e.Args.Contains("--registrar")) { SmartFolder.Register(); Shutdown(); return; }
         if (e.Args.Contains("--remover-registro")) { SmartFolder.Unregister(); Shutdown(); return; }
+        int ci = Array.IndexOf(e.Args, "--criar-aqui");   // botão direito no fundo de uma pasta: Nova pasta inteligente
+        if (ci >= 0 && ci + 1 < e.Args.Length && Directory.Exists(e.Args[ci + 1]))
+        {
+            var nome = InputDialog.Ask(null!, "Nova pasta inteligente", "Pasta inteligente");
+            if (!string.IsNullOrWhiteSpace(nome)) SmartFolder.CreateNew(e.Args[ci + 1], nome.Trim());
+            Shutdown();
+            return;
+        }
         int xi = Array.IndexOf(e.Args, "--exportar");   // --exportar <pasta.0pasta> <pacote.dfpasta>
         if (xi >= 0 && xi + 2 < e.Args.Length)
         {

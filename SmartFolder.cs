@@ -43,6 +43,15 @@ public static class SmartFolder
                 using (var i = p.CreateSubKey("DefaultIcon")) i.SetValue("", $"\"{exe}\",0");
                 using (var c = p.CreateSubKey(@"shell\open\command")) c.SetValue("", $"\"{exe}\" \"%1\"");
             }
+            // Botão direito no fundo de qualquer pasta/Área de Trabalho (menu clássico): "Nova pasta inteligente"
+            using (var nv = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\Background\shell\DesktopFolders.NovaPasta"))
+            {
+                nv.SetValue("", "Nova pasta inteligente");
+                nv.SetValue("Icon", $"\"{exe}\",0");
+                using var nc = nv.CreateSubKey("command");
+                nc.SetValue("", $"\"{exe}\" --criar-aqui \"%V\"");
+            }
+
             // Pacote para compartilhar (.dfpasta): duplo clique importa a pasta na Área de Trabalho
             using (var pk = Registry.CurrentUser.CreateSubKey(@"Software\Classes\" + Package.Ext)) pk.SetValue("", "DesktopFolders.Pacote");
             using (var pp = Registry.CurrentUser.CreateSubKey(@"Software\Classes\DesktopFolders.Pacote"))
@@ -69,7 +78,17 @@ public static class SmartFolder
             }
             SHChangeNotify(0x08000000 /*SHCNE_ASSOCCHANGED*/, 0, IntPtr.Zero, IntPtr.Zero);
         }
-        catch { /* sem acesso ao registro: segue sem o menu Novo */ }
+        catch (Exception ex)
+        {
+            // sem acesso ao registro: segue sem o menu Novo; anota o motivo para diagnóstico
+            try
+            {
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DesktopFolders");
+                Directory.CreateDirectory(dir);
+                File.AppendAllText(Path.Combine(dir, "erro-registro.txt"), $"{DateTime.Now:s} {ex}\n");
+            }
+            catch { }
+        }
     }
 
     private const string ThumbClsid = "{7B3F1E52-9A0C-4D6B-8E21-5C4D7A9E1F30}";
@@ -151,9 +170,21 @@ public static class SmartFolder
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + ProgId, false);
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\" + Package.Ext, false);
             Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\DesktopFolders.Pacote", false);
+            Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Directory\Background\shell\DesktopFolders.NovaPasta", false);
             SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
         }
         catch { }
+    }
+
+    /// <summary>Cria o arquivo de uma pasta inteligente em <paramref name="dir"/> (nome único) e retorna o caminho.</summary>
+    public static string CreateNew(string dir, string name, Layout? data = null)
+    {
+        string safe = string.Concat(name.Split(Path.GetInvalidFileNameChars())).Trim();
+        if (safe.Length == 0) safe = "Pasta inteligente";
+        string file = Path.Combine(dir, safe + Ext);
+        for (int i = 2; File.Exists(file); i++) file = Path.Combine(dir, $"{safe} ({i}){Ext}");
+        Save(file, data ?? new Layout());
+        return file;
     }
 
     public static Layout Load(string file)
