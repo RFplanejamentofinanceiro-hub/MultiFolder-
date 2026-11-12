@@ -126,6 +126,7 @@ public partial class App : Application
         if (e.Args.Contains("--migrar"))   // converte pastas .0pasta antigas da Área de Trabalho em atalhos
         {
             int moved = SmartFolder.MigrateLegacy();
+            SmartFolder.RelocateOldShortcutsAll();
             File.WriteAllText(Path.Combine(Path.GetTempPath(), "df_migrar.txt"), moved.ToString());
             Shutdown();
             return;
@@ -183,6 +184,14 @@ public partial class App : Application
             var w = new FolderWindow(file, dropped, claim);
             MainWindow = w;
             w.Show();
+            return;
+        }
+        // pediram uma pasta inteligente que não dá para ler agora: nunca vira o app da bandeja por engano
+        string? perdida = e.Args.FirstOrDefault(a => a.EndsWith(SmartFolder.Ext, StringComparison.OrdinalIgnoreCase));
+        if (perdida != null)
+        {
+            DesktopDragWatcher.Log($"popup: arquivo de dados não encontrado ({perdida}); este processo sai");
+            Shutdown();
             return;
         }
 

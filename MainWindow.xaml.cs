@@ -59,6 +59,13 @@ public partial class MainWindow : Window
 
             // pastas .0pasta antigas na Área de Trabalho viram atalhos (que o Windows 11 abre por duplo clique)
             try { SmartFolder.MigrateLegacy(); } catch { }
+            // atalhos guardados na pasta antiga do app vão para o Menu Iniciar (aparecem no Iniciar e na busca)
+            try
+            {
+                int n = SmartFolder.RelocateOldShortcutsAll() + SmartFolder.RelocateOldShortcuts(Items);
+                if (n > 0) { Store.Save(_layout); DesktopDragWatcher.Log($"atalhos levados ao Menu Iniciar: {n}"); }
+            }
+            catch { }
             var migrate = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
             migrate.Tick += (_, _) => { try { SmartFolder.MigrateLegacy(); } catch { } };
             migrate.Start();
@@ -344,8 +351,7 @@ public partial class MainWindow : Window
         return added;
     }
 
-    internal static readonly string ShortcutsDir =System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DesktopFolders", "Atalhos");
+    internal static string ShortcutsDir => SmartFolder.ShortcutsDir;   // Menu Iniciar: aparece no Iniciar e na busca
 
     private static bool IsOnDesktop(string path)
     {
@@ -365,11 +371,7 @@ public partial class MainWindow : Window
         if (!File.Exists(path) || (ext != ".lnk" && ext != ".url") || !IsOnDesktop(path)) return path;
         try
         {
-            Directory.CreateDirectory(ShortcutsDir);
-            string dest = System.IO.Path.Combine(ShortcutsDir, System.IO.Path.GetFileName(path));
-            for (int i = 2; File.Exists(dest); i++)
-                dest = System.IO.Path.Combine(ShortcutsDir,
-                    System.IO.Path.GetFileNameWithoutExtension(path) + $" ({i})" + ext);
+            string dest = SmartFolder.UniqueIn(ShortcutsDir, System.IO.Path.GetFileName(path));
             File.Move(path, dest);
             original = path;
             ShellNotify(0x00000004 /*SHCNE_DELETE*/, path);   // o ícone some da Área de Trabalho na hora
@@ -625,13 +627,27 @@ public partial class MainWindow : Window
     /// Duplo clique numa pasta inteligente da Área de Trabalho: abre o popup aqui mesmo, na hora.
     /// (O Explorador às vezes não inicia o programa pelo duplo clique; se iniciar, a 2ª janela percebe e fecha.)
     /// </summary>
-    private void OnDesktopDoubleClick(string name)
+    private void OnDesktopDoubleClick(string name, bool modActive)
+    {
+        if (modActive)
+        {
+            // o mod do Windhawk abre a pasta; a bandeja confere depois e só abre se ele não tiver aberto
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            t.Tick += (_, _) => { t.Stop(); OpenFromDesktop(name, fallback: true); };
+            t.Start();
+            return;
+        }
+        OpenFromDesktop(name, fallback: false);
+    }
+
+    private void OpenFromDesktop(string name, bool fallback)
     {
         try
         {
             string? item = ResolveDesktopItem(name);
             if (item == null || !SmartFolder.TryGetDataFile(item, out string data)) return;
             if (!FolderWindow.TryClaim(data, out var claim)) return;   // já está aberta
+            if (fallback) DesktopDragWatcher.Log($"duplo clique: o mod não abriu '{name}'; a bandeja abriu");
             var w = new FolderWindow(data, null, claim);
             w.Show();
         }

@@ -73,6 +73,11 @@ internal sealed class DesktopList : IDisposable
 
     public bool IsAlive => IsWindow(_lv);
 
+    // o mod do Windhawk (desktopfolders-instant-open) marca a lista da Área de Trabalho
+    // enquanto está ativo; aí ele mesmo abre as pastas e o detector daqui fica desligado
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetPropW(IntPtr hWnd, string lpString);
+    public bool ModActive => GetPropW(_lv, "DesktopFolders.ModActive") != IntPtr.Zero;
+
     private IntPtr Send(uint msg, IntPtr w, IntPtr l)
     {
         SendMessageTimeout(_lv, msg, w, l, 0x0002 /*SMTO_ABORTIFHUNG*/, 300, out IntPtr r);
@@ -277,7 +282,7 @@ internal sealed class DesktopDragWatcher
     private PT _lastClickPt;
 
     /// <summary>Duplo clique em um ícone da Área de Trabalho (nome do ícone).</summary>
-    public event Action<string>? IconDoubleClicked;
+    public event Action<string, bool>? IconDoubleClicked;
 
     private string? _lastDropKey;
     private DateTime _lastDropAt = DateTime.MinValue;
@@ -360,7 +365,8 @@ internal sealed class DesktopDragWatcher
                     _lastClickIdx = -1;
                     string? name = _list.ItemText(idx);
                     Log($"duplo clique no ícone {idx} '{name}'");
-                    if (!string.IsNullOrEmpty(name)) _owner.Dispatcher.BeginInvoke(new Action(() => IconDoubleClicked?.Invoke(name)));
+                    bool mod = _list.ModActive;   // com o mod do Windhawk ativo, a bandeja só entra se ele não abrir
+                    if (!string.IsNullOrEmpty(name)) _owner.Dispatcher.BeginInvoke(new Action(() => IconDoubleClicked?.Invoke(name, mod)));
                 }
                 else { _lastClickIdx = idx; _lastClickAt = DateTime.UtcNow; _lastClickPt = p; }
                 if (idx >= 0 && top && Enabled) { _state = State.Pressed; _press = p; _pressIdx = idx; }

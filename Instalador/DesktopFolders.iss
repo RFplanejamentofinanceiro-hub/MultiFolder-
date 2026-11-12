@@ -1,7 +1,7 @@
 ﻿; Instalador do DesktopFolders (Inno Setup 6). Gerar com: Criar-setup.ps1
 #define AppName "DesktopFolders"
 #ifndef AppVersion
-  #define AppVersion "1.2.0"
+  #define AppVersion "1.2.1"
 #endif
 
 [Setup]

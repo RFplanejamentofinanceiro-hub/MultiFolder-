@@ -60,7 +60,9 @@ internal static class ShellDrop
         if (SHGetPathFromIDListW(pidl, sb) && (File.Exists(sb.ToString()) || Directory.Exists(sb.ToString())))
         {
             string fs = sb.ToString();
-            // atalho do Menu Iniciar: copia, para não tirar o app do Menu Iniciar
+            // atalho que já está no Menu Iniciar: usa o próprio (copiar duplicaria o app na busca)
+            if (SmartFolder.IsInStartMenu(fs)) return fs;
+            // outro atalho solto: copia, para não tirar do lugar de origem
             if (fs.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) || fs.EndsWith(".url", StringComparison.OrdinalIgnoreCase))
                 return CopyUnique(fs, shortcutDir);
             return fs;

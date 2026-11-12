@@ -34,6 +34,74 @@ public static class SmartFolder
     private static string OldIconDir => Path.Combine(AppDir, "Icones");   // onde as primeiras versões 1.2 guardavam
     public static string LegacyDir => Path.Combine(DataDir, "legado");
 
+    /// <summary>
+    /// Onde ficam os atalhos tirados da Área de Trabalho: uma pasta no Menu Iniciar do usuário, para que
+    /// continuem aparecendo no Iniciar e na busca do Windows.
+    /// </summary>
+    public static string ShortcutsDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Pastas inteligentes");
+    /// <summary>Onde as versões até a 1.2.1 guardavam os atalhos (fora do alcance da busca).</summary>
+    public static string OldShortcutsDir => Path.Combine(AppDir, "Atalhos");
+
+    /// <summary>Atalho (ou pasta de atalhos) já está no Menu Iniciar do usuário ou de todos?</summary>
+    public static bool IsInStartMenu(string path)
+    {
+        foreach (var root in new[] { Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+                                     Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms) })
+            if (!string.IsNullOrEmpty(root) && path.StartsWith(root.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
+    public static string UniqueIn(string dir, string fileName)
+    {
+        Directory.CreateDirectory(dir);
+        string dest = Path.Combine(dir, fileName);
+        string stem = Path.GetFileNameWithoutExtension(fileName), ext = Path.GetExtension(fileName);
+        for (int i = 2; File.Exists(dest); i++) dest = Path.Combine(dir, $"{stem} ({i}){ext}");
+        return dest;
+    }
+
+    /// <summary>Leva para o Menu Iniciar os atalhos que estavam na pasta antiga do app. Devolve quantos moveu.</summary>
+    public static int RelocateOldShortcuts(IEnumerable<Entry> items)
+    {
+        int moved = 0;
+        string old = OldShortcutsDir.TrimEnd('\\') + "\\";
+        foreach (var e in items)
+        {
+            moved += RelocateOldShortcuts(e.Items);
+            if (e.Path == null || !e.Path.StartsWith(old, StringComparison.OrdinalIgnoreCase) || !File.Exists(e.Path)) continue;
+            try
+            {
+                string dest = UniqueIn(ShortcutsDir, Path.GetFileName(e.Path));
+                File.Move(e.Path, dest);
+                e.Path = dest;
+                moved++;
+            }
+            catch { /* fica onde está e continua abrindo pela pasta */ }
+        }
+        return moved;
+    }
+
+    /// <summary>Migra todas as pastas inteligentes salvas. Pode ser chamado várias vezes.</summary>
+    public static int RelocateOldShortcutsAll()
+    {
+        int total = 0;
+        if (!Directory.Exists(OldShortcutsDir) || !Directory.Exists(DataDir)) return 0;
+        foreach (var f in Directory.GetFiles(DataDir, "*" + Ext))
+        {
+            try
+            {
+                var data = Load(f);
+                int n = RelocateOldShortcuts(data.Items);
+                if (n > 0) { Save(f, data); total += n; }
+            }
+            catch { }
+        }
+        if (total > 0) SHChangeNotify(0x08000000 /*SHCNE_ASSOCCHANGED*/, 0, IntPtr.Zero, IntPtr.Zero);
+        return total;
+    }
+
     public static string[] DesktopDirs => new[]
     {
         Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),

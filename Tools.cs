@@ -111,7 +111,8 @@ public static class Backup
         int layout = 0, shortcuts, smart = 0;
         var lf = Path.Combine(AppData, "layout.json");
         if (File.Exists(lf)) { File.Copy(lf, Path.Combine(dir, "layout.json"), true); layout = 1; }
-        shortcuts = CopyDir(Path.Combine(AppData, "Atalhos"), Path.Combine(dir, "Atalhos"));
+        shortcuts = CopyDir(SmartFolder.ShortcutsDir, Path.Combine(dir, "Atalhos-Iniciar"))
+                  + CopyDir(SmartFolder.OldShortcutsDir, Path.Combine(dir, "Atalhos"));
         // pastas inteligentes: dados + ícones (na pasta do app) e os atalhos que estão na Área de Trabalho
         smart = CopyDir(SmartFolder.DataDir, Path.Combine(dir, "Pastas"), "*" + SmartFolder.Ext);
         CopyDir(SmartFolder.IconDir, Path.Combine(dir, "Icones"));
@@ -131,8 +132,10 @@ public static class Backup
         int layout = 0;
         var lf = Path.Combine(dir, "layout.json");
         if (File.Exists(lf)) { File.Copy(lf, Path.Combine(AppData, "layout.json"), true); layout = 1; }
-        int shortcuts = CopyDir(Path.Combine(dir, "Atalhos"), Path.Combine(AppData, "Atalhos"));
+        int shortcuts = CopyDir(Path.Combine(dir, "Atalhos-Iniciar"), SmartFolder.ShortcutsDir)
+                      + CopyDir(Path.Combine(dir, "Atalhos"), SmartFolder.OldShortcutsDir);
         int smart = CopyDir(Path.Combine(dir, "Pastas"), SmartFolder.DataDir, "*" + SmartFolder.Ext);
+        SmartFolder.RelocateOldShortcutsAll();   // backups antigos: leva os atalhos para o Menu Iniciar
         CopyDir(Path.Combine(dir, "Icones"), SmartFolder.IconDir);
         CopyDir(Path.Combine(dir, "Pastas-Atalhos"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "*.lnk");
         return $"Backup restaurado.\n\n• Layout: {layout}\n• Atalhos: {shortcuts}\n• Pastas inteligentes: {smart}\n\nFeche e abra o DesktopFolders para carregar o layout restaurado.";

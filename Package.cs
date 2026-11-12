@@ -57,8 +57,7 @@ public static class Package
         using (var r = new StreamReader(me.Open(), Encoding.UTF8))
             man = JsonSerializer.Deserialize<Manifest>(r.ReadToEnd()) ?? throw new InvalidDataException("Pacote vazio.");
 
-        string appData = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DesktopFolders", "Atalhos", Guid.NewGuid().ToString("N"));
+        string appData = SmartFolder.ShortcutsDir;   // atalhos importados também aparecem no Iniciar e na busca
         Directory.CreateDirectory(appData);
 
         int total = 0, faltando = 0;
@@ -70,8 +69,8 @@ public static class Package
                 var z = zip.GetEntry(it.Path.Substring(4));
                 if (z == null) { faltando++; continue; }
                 // nome seguro: só o nome do arquivo, nunca um caminho vindo do pacote
-                string dest = System.IO.Path.Combine(appData, System.IO.Path.GetFileName(z.FullName));
-                z.ExtractToFile(dest, true);
+                string dest = SmartFolder.UniqueIn(appData, System.IO.Path.GetFileName(z.FullName));
+                z.ExtractToFile(dest, false);
                 it.Path = dest;
             }
             else if (it.Path != null && !File.Exists(it.Path) && !Directory.Exists(it.Path)) faltando++;

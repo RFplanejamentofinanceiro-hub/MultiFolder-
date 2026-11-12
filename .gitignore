@@ -12,3 +12,6 @@ DesktopFolders-Instalador.zip
 
 # estado interno de ferramentas
 .omc/
+
+# arquivos locais de restauração (não publicar)
+_restaurar/

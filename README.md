@@ -3,6 +3,10 @@
 **Pastas inteligentes para a Área de Trabalho do Windows.** Agrupe programas numa pasta e, ao clicar, ela
 expande mostrando os apps para abrir, como nas pastas do iPhone e do macOS. Grátis e de código aberto.
 
+[![Mod do Windhawk](https://img.shields.io/badge/Windhawk-mod-2c6fdb?logo=windows11&logoColor=white)](#mod-do-windhawk)
+
+![Arrastar um atalho sobre outro, dar nome à pasta e abrir com duplo clique](docs/img/demo.gif)
+
 | Tema escuro | Tema claro |
 |---|---|
 | ![Popup escuro](docs/img/popup-escuro.png) | ![Popup claro](docs/img/popup-claro.png) |
@@ -73,6 +77,18 @@ Abra o **DesktopFolders** pelo Menu Iniciar: ele fica na bandeja e desenha ícon
 cima do papel de parede. Clique direito no vazio abre o menu normal do Windows. Na bandeja você oculta os
 ícones padrão do Windows, liga o backup e outras opções. Quem usa só as pastas inteligentes **não precisa**
 dessa camada, mas ela precisa estar aberta para o arrasto de ícone sobre ícone funcionar.
+
+## Mod do Windhawk
+
+Quem usa o [Windhawk](https://windhawk.net) pode instalar o mod **DesktopFolders: Instant Smart Folder Open**
+([código](windhawk/desktopfolders-instant-open.wh.cpp)). Ele roda dentro do Explorador e:
+
+- abre a pasta inteligente na hora e já em primeiro plano, com duplo clique ou Enter;
+- opcionalmente abre com **um clique só** (configuração do mod); arrastar a pasta e Ctrl/Shift+clique continuam normais;
+- não muda nenhum outro ícone nem as janelas do Explorador.
+
+Com o mod ativo, o DesktopFolders da bandeja percebe e desliga o próprio detector de duplo clique.
+O mod precisa do DesktopFolders instalado.
 
 ## Menu de botão direito do Windows 11
 
